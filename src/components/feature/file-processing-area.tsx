@@ -1,292 +1,254 @@
 "use client";
 
-import { useState, useRef, type ChangeEvent, useCallback } from 'react';
-import { Upload, FileText, FileImage, FileAudio, Loader2, Download, AlertCircle, RefreshCcw, CheckCircle2 } from 'lucide-react';
+import { useState, useRef, type ChangeEvent } from 'react';
+import {
+  Upload,
+  Folder,
+  Cog,
+  FileText,
+  Eye,
+  Settings,
+  Info,
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  Minus,
+  Save,
+  CheckCircle,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { useToast } from '@/hooks/use-toast';
-import { Separator } from '../ui/separator';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
-type ProcessedFile = {
-  name: string;
-  type: 'md' | 'media';
-  originalFile?: File;
-  content?: string;
-  icon: React.ReactNode;
-};
+const InfoTooltip = ({ children }: { children: React.ReactNode }) => (
+  <TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button type="button" className="ml-1 text-muted-foreground">
+          <Info className="h-4 w-4" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p className="max-w-xs">{children}</p>
+      </TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+);
 
-type Status = 'idle' | 'processing' | 'success' | 'error';
 
 export function FileProcessingArea() {
-  const [status, setStatus] = useState<Status>('idle');
-  const [processedFiles, setProcessedFiles] = useState<ProcessedFile[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [bodyChars, setBodyChars] = useState(10);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { toast } = useToast();
-
-  const handleFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (files && files.length > 0) {
-      processFiles(Array.from(files));
-    }
-  };
-
-  const triggerFileSelect = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleReset = () => {
-    setStatus('idle');
-    setProcessedFiles([]);
-    setError(null);
-    if(fileInputRef.current) {
-        fileInputRef.current.value = "";
-    }
-  };
-
-  const handleDownload = (content: string, fileName: string) => {
-    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleDownloadAll = () => {
-    const markdownFiles = processedFiles.filter(f => f.type === 'md' && f.content);
-    if(markdownFiles.length === 0) return;
-    
-    markdownFiles.forEach((file, index) => {
-      setTimeout(() => {
-        handleDownload(file.content!, file.name);
-      }, index * 200);
-    });
-
-    toast({
-      title: "Downloads Started",
-      description: "Your browser may ask for permission to download multiple files.",
-    });
-  };
-
-  const processFiles = useCallback(async (files: File[]) => {
-    setStatus('processing');
-    setProcessedFiles([]);
-    setError(null);
-
-    const htmlFiles = files.filter(file => file.name.endsWith('.html'));
-    const mediaFiles = files.filter(file => !file.name.endsWith('.html') && !file.name.endsWith('.json'));
-
-    if (htmlFiles.length === 0) {
-      setError("No HTML files found. Please make sure you've selected a valid Google Keep Takeout folder.");
-      setStatus('error');
-      return;
-    }
-
-    const newProcessedFiles: ProcessedFile[] = [];
-
-    for (const file of htmlFiles) {
-      try {
-        const htmlContent = await file.text();
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(htmlContent, 'text/html');
-
-        const title = doc.querySelector('.title')?.textContent?.trim() || 'Untitled Note';
-        
-        let creationDate = '';
-        const headingEl = doc.querySelector('.heading');
-        if (headingEl?.textContent) {
-          try {
-            const date = new Date(headingEl.textContent);
-            if (!isNaN(date.getTime())) {
-              creationDate = date.toISOString().split('T')[0];
-            }
-          } catch (e) { /* Ignore invalid date format */ }
-        }
-        
-        const newTitle = creationDate ? `${creationDate} - ${title}` : title;
-
-        let markdownBody = '';
-        const contentEl = doc.querySelector('.content');
-        if (contentEl) {
-            Array.from(contentEl.childNodes).forEach(node => {
-                if (node.nodeType === Node.TEXT_NODE) {
-                    if(node.textContent?.trim()) markdownBody += node.textContent.trim() + '\n\n';
-                } else if (node.nodeType === Node.ELEMENT_NODE) {
-                    const element = node as HTMLElement;
-                     if (element.tagName === 'DIV') { 
-                        if(element.textContent?.trim()) markdownBody += element.textContent.trim() + '\n\n';
-                    } else if (element.tagName === 'UL' && element.classList.contains('list')) {
-                        element.querySelectorAll('li.listitem').forEach(item => {
-                            const checkbox = item.querySelector('input[type="checkbox"]');
-                            const textSpan = item.querySelector('span.text');
-                            if (checkbox && textSpan) {
-                                const isChecked = checkbox.hasAttribute('checked');
-                                markdownBody += `- [${isChecked ? 'x' : ' '}] ${textSpan.textContent?.trim()}\n`;
-                            }
-                        });
-                        markdownBody += '\n';
-                    }
-                }
-            });
-        }
-        
-        const attachmentsEl = doc.querySelector('.attachments');
-        if(attachmentsEl) {
-            attachmentsEl.querySelectorAll('a').forEach(link => {
-                const src = link.getAttribute('href');
-                if (src) {
-                    const fileName = decodeURIComponent(src.split('/').pop() || '');
-                    markdownBody += `![[${fileName}]]\n`;
-                }
-            });
-        }
-        
-        const fullMarkdown = `# ${newTitle}\n\n${markdownBody.trim()}`;
-        const newFileName = file.name.replace(/\.html$/, '.md');
-        
-        newProcessedFiles.push({ name: newFileName, type: 'md', content: fullMarkdown, icon: <FileText className="h-5 w-5 text-primary" /> });
-
-      } catch (e) {
-        console.error("Failed to process file:", file.name, e);
-      }
-    }
-    
-    mediaFiles.forEach(file => {
-      let icon = <FileText className="h-5 w-5 text-muted-foreground" />;
-      if (file.type.startsWith('image/')) icon = <FileImage className="h-5 w-5 text-green-600" />;
-      if (file.type.startsWith('audio/')) icon = <FileAudio className="h-5 w-5 text-purple-600" />;
-      newProcessedFiles.push({ name: file.name, type: 'media', originalFile: file, icon });
-    });
-
-    setProcessedFiles(newProcessedFiles);
-    setStatus('success');
-  }, [toast]);
-
-  const renderContent = () => {
-    switch (status) {
-      case 'processing':
-        return (
-          <div className="flex flex-col items-center justify-center text-center p-12">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            <p className="mt-4 text-lg font-medium text-muted-foreground">Processing your notes...</p>
-            <p className="text-sm text-muted-foreground">This may take a moment for large exports.</p>
-          </div>
-        );
-      case 'success':
-        const mdFiles = processedFiles.filter(f => f.type === 'md');
-        const media = processedFiles.filter(f => f.type === 'media');
-        return (
-          <>
-            <CardHeader className="text-center">
-              <CheckCircle2 className="mx-auto h-12 w-12 text-green-600" />
-              <CardTitle className="font-headline text-2xl">Conversion Complete!</CardTitle>
-              <CardDescription>
-                We've converted {mdFiles.length} notes. Download your new Markdown files below.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="font-semibold mb-2">Markdown Notes ({mdFiles.length})</h3>
-                  <ScrollArea className="h-64 rounded-md border p-2">
-                    <div className="space-y-1 pr-2">
-                      {mdFiles.map(file => (
-                        <div key={file.name} className="flex items-center justify-between rounded-md p-2 hover:bg-secondary">
-                          <div className="flex items-center gap-2 truncate">
-                            {file.icon}
-                            <span className="text-sm truncate">{file.name}</span>
-                          </div>
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDownload(file.content!, file.name)}>
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </div>
-                <div>
-                  <h3 className="font-semibold mb-2">Media Files ({media.length})</h3>
-                   <ScrollArea className="h-64 rounded-md border p-2">
-                    <div className="space-y-1 pr-2">
-                      {media.map(file => (
-                        <div key={file.name} className="flex items-center gap-2 p-2">
-                          {file.icon}
-                          <span className="text-sm truncate">{file.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </div>
-              </div>
-              <Separator className="my-6" />
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle className="font-semibold">Important Next Step</AlertTitle>
-                <AlertDescription>
-                  For media links to work in Obsidian, move your original media files into the same folder as your new Markdown files.
-                </AlertDescription>
-              </Alert>
-              <div className="mt-6 flex flex-col sm:flex-row gap-4">
-                 <Button size="lg" className="w-full sm:w-auto flex-grow" onClick={handleDownloadAll}>
-                    <Download className="mr-2 h-5 w-5" /> Download All Markdown Files
-                  </Button>
-                  <Button size="lg" variant="outline" className="w-full sm:w-auto" onClick={handleReset}>
-                    <RefreshCcw className="mr-2 h-5 w-5" /> Convert Another
-                  </Button>
-              </div>
-            </CardContent>
-          </>
-        );
-       case 'error':
-        return (
-            <CardContent className="flex flex-col items-center text-center p-8">
-                <AlertCircle className="h-12 w-12 text-destructive" />
-                <h2 className="mt-4 font-headline text-2xl text-destructive">Conversion Failed</h2>
-                <p className="mt-2 text-muted-foreground">{error}</p>
-                <Button size="lg" className="mt-6" onClick={handleReset}>
-                    <RefreshCcw className="mr-2 h-4 w-4" /> Try Again
-                </Button>
-            </CardContent>
-        );
-      case 'idle':
-      default:
-        return (
-          <>
-            <CardHeader className="text-center">
-              <CardTitle className="font-headline text-2xl">Start Your Conversion</CardTitle>
-              <CardDescription>
-                Select your 'Google Keep' folder from your Google Takeout export.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center justify-center p-12">
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileSelect}
-                className="hidden"
-                webkitdirectory=""
-                directory=""
-                multiple
-              />
-              <Button size="lg" onClick={triggerFileSelect}>
-                <Upload className="mr-2 h-5 w-5" /> Upload Folder
-              </Button>
-              <p className="mt-4 text-xs text-muted-foreground">All processing happens in your browser. Your files are never uploaded.</p>
-            </CardContent>
-          </>
-        );
-    }
-  };
 
   return (
-    <Card className="w-full max-w-4xl shadow-lg animate-in fade-in-50 duration-500">
-      {renderContent()}
-    </Card>
+    <div className="w-full max-w-4xl animate-in fade-in-50 duration-500">
+      <Accordion type="multiple" defaultValue={['item-1', 'item-2', 'item-3']} className="w-full space-y-4">
+        {/* Import Section */}
+        <AccordionItem value="item-1" className="border rounded-lg bg-card overflow-hidden">
+          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-primary/10 hover:no-underline">
+            <div className="flex items-center gap-2">
+              <Upload className="h-5 w-5 text-primary" />
+              <span>Import</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="px-6 pt-4 pb-6">
+            <div className="space-y-4">
+              <Button variant="outline" className="w-full justify-start h-12 text-base">
+                <Folder className="mr-2 h-5 w-5" />
+                Source Folder
+              </Button>
+              <Button variant="outline" className="w-full justify-start h-12 text-base">
+                <Folder className="mr-2 h-5 w-5" />
+                Output Folder
+              </Button>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        {/* Process Section */}
+        <AccordionItem value="item-2" className="border rounded-lg bg-card overflow-hidden">
+          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-accent/10 hover:no-underline">
+             <div className="flex items-center gap-2">
+                <Cog className="h-5 w-5 text-accent" />
+                <span>Process</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="px-6 pt-4 pb-6 space-y-4">
+            <Card className="bg-background/50">
+                <CardHeader>
+                    <CardTitle className="flex items-center text-base">
+                        File (Re)Naming
+                        <CheckCircle className="ml-2 h-5 w-5 text-green-500"/>
+                        <div className="flex-grow" />
+                        <InfoTooltip>Configure how your output files will be named.</InfoTooltip>
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    <Select>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Select from templates" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="template1">Default Template</SelectItem>
+                        </SelectContent>
+                    </Select>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                         <div className="flex items-center space-x-2">
+                            <Checkbox id="title" defaultChecked/>
+                            <Label htmlFor="title">Title</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <Checkbox id="body" defaultChecked/>
+                            <Label htmlFor="body">Body</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                           <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setBodyChars(p => p > 0 ? p -1 : 0)}><Minus className="h-4 w-4"/></Button>
+                           <span className="w-6 text-center">{bodyChars}</span>
+                           <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setBodyChars(p => p + 1)}><Plus className="h-4 w-4"/></Button>
+                           <Label>Chars</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <Checkbox id="date" defaultChecked/>
+                            <Label htmlFor="date">Date</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <Checkbox id="time" />
+                            <Label htmlFor="time">Time</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <Checkbox id="serial" />
+                            <Label htmlFor="serial">Serial</Label>
+                        </div>
+                    </div>
+
+                    <div>
+                        <Label className="font-semibold">Date <span className="text-muted-foreground font-normal">sorting is chronological</span></Label>
+                        <RadioGroup defaultValue="prepend" className="flex mt-2">
+                            <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="prepend" id="prepend" />
+                                <Label htmlFor="prepend">Prepend</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="append" id="append" />
+                                <Label htmlFor="append">Append</Label>
+                            </div>
+                        </RadioGroup>
+                    </div>
+
+                    <div>
+                        <Label className="font-semibold flex items-center">Serial start with <InfoTooltip>Choose the padding for your serial numbers.</InfoTooltip></Label>
+                        <RadioGroup defaultValue="1" className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+                             <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="1" id="s1" />
+                                <Label htmlFor="s1">1</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="01" id="s01" />
+                                <Label htmlFor="s01">01</Label>
+                            </div>
+                             <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="001" id="s001" />
+                                <Label htmlFor="s001">001</Label>
+                            </div>
+                             <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="0001" id="s0001" />
+                                <Label htmlFor="s0001">0001</Label>
+                            </div>
+                        </RadioGroup>
+                    </div>
+
+                    <div className="bg-secondary p-3 rounded-md text-sm text-muted-foreground flex items-center gap-2">
+                        <Eye className="h-4 w-4 text-primary shrink-0"/>
+                        <span className="truncate">2024-01-23 - Insert Title - Do you ever feel like a plastic bag...</span>
+                    </div>
+
+                     <div className="flex gap-2">
+                        <Input placeholder="New template name" />
+                        <Button variant="outline"><Save className="mr-2 h-4 w-4"/> Save</Button>
+                    </div>
+
+                </CardContent>
+            </Card>
+
+            <Card className="bg-background/50">
+                 <CardHeader>
+                    <CardTitle className="flex items-center text-base">
+                        File formatting
+                        <span className="ml-2 text-sm font-normal text-muted-foreground">relevant for Obsidian</span>
+                        <div className="flex-grow" />
+                        <InfoTooltip>Options for how content is formatted inside the markdown files.</InfoTooltip>
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                     <Select>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Select from Obsidian templates" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="template1">Default</SelectItem>
+                        </SelectContent>
+                    </Select>
+                     <div>
+                        <Label className="font-semibold flex items-center">Tag handling <span className="ml-2 text-sm font-normal text-muted-foreground">relevant for Obsidian Graphs</span><InfoTooltip>Choose how to represent Google Keep tags in Obsidian.</InfoTooltip></Label>
+                        <RadioGroup defaultValue="hash" className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+                             <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="links" id="links" />
+                                <Label htmlFor="links">Links (notes)</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="hash" id="hash" />
+                                <Label htmlFor="hash">#Hash</Label>
+                            </div>
+                             <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="atlinks" id="atlinks" />
+                                <Label htmlFor="atlinks">@Links</Label>
+                            </div>
+                        </RadioGroup>
+                    </div>
+                </CardContent>
+            </Card>
+
+          </AccordionContent>
+        </AccordionItem>
+
+        {/* Finish Section */}
+        <AccordionItem value="item-3" className="border rounded-lg bg-card overflow-hidden">
+          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-purple-500/10 hover:no-underline">
+             <div className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-purple-400" />
+                <span>Finish</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="px-6 pt-4 pb-6">
+            <div className="flex flex-col sm:flex-row gap-4">
+                <Button size="lg" className="w-full">
+                    <Eye className="mr-2 h-5 w-5" /> Preview
+                </Button>
+                <Button size="lg" variant="secondary" className="w-full">
+                    <Settings className="mr-2 h-5 w-5" /> Run Conversion
+                </Button>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+    </div>
   );
 }
