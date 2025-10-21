@@ -16,6 +16,7 @@ import {
   Download,
   Loader2,
   ShieldCheck,
+  ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -224,6 +225,7 @@ export function FileProcessingArea() {
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState('');
+  const [queuedFiles, setQueuedFiles] = useState<string[]>([]);
   const [previewFile, setPreviewFile] = useState<typeof convertedFiles[0] | null>(null);
 
   const { toast } = useToast();
@@ -272,7 +274,6 @@ export function FileProcessingArea() {
 
     setIsLoading(true);
     setProgress(0);
-    setStatusText('Starting conversion...');
     if (!preview) {
       setConvertedFiles([]);
     }
@@ -292,12 +293,25 @@ export function FileProcessingArea() {
       if (namingOptions.useDate) {
         filesWithData.sort((a, b) => a.data.creationTime.getTime() - b.data.creationTime.getTime());
       }
+      
+      const fileQueue = filesWithData.map(f => f.file.path);
+      setQueuedFiles(fileQueue);
+
+      setStatusText(`Starting conversion of ${fileQueue.length} notes...`);
+
 
       const totalFiles = filesWithData.length;
       const newlyConvertedFiles: ConvertToMarkdownOutput['convertedFiles'] = [];
       
       for (let i = 0; i < totalFiles; i++) {
         const { file, data } = filesWithData[i];
+        
+        if (!preview) {
+            const remainingQueue = fileQueue.slice(i + 1);
+            setQueuedFiles(remainingQueue);
+            setStatusText(`Converting: ${file.path}`);
+        }
+
         const markdownContent = formatMarkdown(data, formattingOptions);
         const newFilename = createFilename(data, namingOptions, i + 1);
 
@@ -308,8 +322,7 @@ export function FileProcessingArea() {
         });
 
         if (!preview) {
-            await new Promise(resolve => setTimeout(resolve, 5)); // Small delay for UI update
-            setStatusText(`Converting ${i + 1} of ${totalFiles}...`);
+            await new Promise(resolve => setTimeout(resolve, 20)); // Small delay for UI update
             setProgress(((i + 1) / totalFiles) * 100);
         }
       }
@@ -356,10 +369,12 @@ export function FileProcessingArea() {
         setTimeout(() => {
           setIsLoading(false);
           setStatusText('');
-        }, 2000);
+          setQueuedFiles([]);
+        }, 3000);
       } else {
         setIsLoading(false);
         setStatusText('');
+        setQueuedFiles([]);
       }
     }
   };
@@ -804,9 +819,28 @@ export function FileProcessingArea() {
                 </Button>
             </div>
              {isLoading && (
-              <div className="mt-6 space-y-2 text-center">
-                  <Progress value={progress} className="w-full" />
-                  <p className="text-sm text-muted-foreground">{statusText} {progress > 0 && `${Math.round(progress)}%`}</p>
+              <div className="mt-6 w-full space-y-4 rounded-lg bg-secondary/50 p-4">
+                  <div className="space-y-2 text-center">
+                    <p className="text-sm font-medium text-muted-foreground truncate">{statusText}</p>
+                    <Progress value={progress} className="w-full" />
+                    <p className="text-sm text-muted-foreground">{htmlFiles.length - queuedFiles.length}/{htmlFiles.length} files converted ({Math.round(progress)}%)</p>
+                  </div>
+                  {queuedFiles.length > 0 && (
+                      <div>
+                          <p className="text-xs font-semibold text-muted-foreground mb-2">Up next...</p>
+                          <ScrollArea className="h-24 w-full rounded-md border bg-background/50">
+                              <div className="p-2 text-xs text-muted-foreground">
+                                  {queuedFiles.slice(0, 10).map((file, i) => (
+                                      <p key={i} className="truncate flex items-center">
+                                          <ChevronRight className="h-3 w-3 mr-1 flex-shrink-0" />
+                                          {file}
+                                      </p>
+                                  ))}
+                                  {queuedFiles.length > 10 && <p className="mt-1">...and {queuedFiles.length - 10} more</p>}
+                              </div>
+                          </ScrollArea>
+                      </div>
+                  )}
               </div>
             )}
             {allFiles.length > 0 && !isLoading && (
