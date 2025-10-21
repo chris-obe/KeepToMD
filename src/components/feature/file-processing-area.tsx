@@ -34,7 +34,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import {
   Dialog,
   DialogContent,
@@ -305,6 +305,15 @@ export function FileProcessingArea() {
         return <p key={i}>{line}</p>;
     });
   }
+  
+  const handleBodyUnitChange = (value: 'characters' | 'words' | 'lines') => {
+    let newLength = namingOptions.bodyLength;
+    if (value === 'characters') newLength = 30;
+    if (value === 'words') newLength = 5;
+    if (value === 'lines') newLength = 1;
+    setNamingOptions(p => ({...p, bodyUnit: value, bodyLength: newLength}));
+  }
+
 
   return (
     <div className="w-full max-w-4xl animate-in fade-in-50 duration-500">
@@ -379,23 +388,27 @@ export function FileProcessingArea() {
                     </div>
 
                     {namingOptions.useBody && (
-                    <div className="space-y-2 pt-4 border-t border-border pl-6">
+                    <div className="space-y-4 pt-4 border-t border-border pl-6">
                         <Label className="font-semibold">Title from body options</Label>
-                        <div className="flex items-center space-x-2">
+                         <div className="flex items-center space-x-2">
                            <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setNamingOptions(p => ({ ...p, bodyLength: Math.max(1, p.bodyLength - 1) }))}><Minus className="h-4 w-4"/></Button>
                            <span className="w-8 text-center text-sm">{namingOptions.bodyLength}</span>
                            <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setNamingOptions(p => ({ ...p, bodyLength: p.bodyLength + 1 }))}><Plus className="h-4 w-4"/></Button>
-                           <Select value={namingOptions.bodyUnit} onValueChange={(value: 'characters' | 'words' | 'lines') => setNamingOptions(p => ({...p, bodyUnit: value}))}>
-                               <SelectTrigger className="w-[120px] h-7 text-sm">
-                                   <SelectValue />
-                               </SelectTrigger>
-                               <SelectContent>
-                                   <SelectItem value="characters">characters</SelectItem>
-                                   <SelectItem value="words">words</SelectItem>
-                                   <SelectItem value="lines">lines</SelectItem>
-                               </SelectContent>
-                           </Select>
                         </div>
+                        <RadioGroup value={namingOptions.bodyUnit} onValueChange={handleBodyUnitChange} className="flex flex-col space-y-1">
+                            <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="characters" id="characters" />
+                                <Label htmlFor="characters">characters</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="words" id="words" />
+                                <Label htmlFor="words">words</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="lines" id="lines" />
+                                <Label htmlFor="lines">lines</Label>
+                            </div>
+                        </RadioGroup>
                     </div>
                     )}
                     
@@ -417,17 +430,24 @@ export function FileProcessingArea() {
                         {namingOptions.useDate && (
                             <div className="space-y-2">
                                 <Label className="font-semibold">Date format</Label>
-                                <Select value={namingOptions.dateFormat} onValueChange={(value) => setNamingOptions(p => ({...p, dateFormat: value}))}>
-                                   <SelectTrigger className="w-[180px] h-8 text-sm">
-                                       <SelectValue />
-                                   </SelectTrigger>
-                                   <SelectContent>
-                                       <SelectItem value="yyyy-MM-dd">2024-07-29</SelectItem>
-                                       <SelectItem value="dd-MM-yyyy">29-07-2024</SelectItem>
-                                       <SelectItem value="MM-dd-yyyy">07-29-2024</SelectItem>
-                                       <SelectItem value="yyyyMMdd">20240729</SelectItem>
-                                   </SelectContent>
-                               </Select>
+                                <RadioGroup value={namingOptions.dateFormat} onValueChange={(value) => setNamingOptions(p => ({...p, dateFormat: value}))} className="mt-2 space-y-1">
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="yyyy-MM-dd" id="df-1" />
+                                        <Label htmlFor="df-1">2024-07-29</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="dd-MM-yyyy" id="df-2" />
+                                        <Label htmlFor="df-2">29-07-2024</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="MM-dd-yyyy" id="df-3" />
+                                        <Label htmlFor="df-3">07-29-2024</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="yyyyMMdd" id="df-4" />
+                                        <Label htmlFor="df-4">20240729</Label>
+                                    </div>
+                                </RadioGroup>
                             </div>
                         )}
                         {namingOptions.useTime && (
