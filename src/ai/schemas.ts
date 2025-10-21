@@ -23,16 +23,6 @@ export const FormattingOptionsSchema = z.object({
 export type FormattingOptions = z.infer<typeof FormattingOptionsSchema>;
 
 
-export const ConvertToMarkdownInputSchema = z.object({
-  files: z.array(z.object({
-    path: z.string(),
-    content: z.string(),
-  })),
-  namingOptions: NamingOptionsSchema,
-  formattingOptions: FormattingOptionsSchema,
-});
-export type ConvertToMarkdownInput = z.infer<typeof ConvertToMarkdownInputSchema>;
-
 export const ConvertToMarkdownOutputSchema = z.object({
   convertedFiles: z.array(z.object({
     originalPath: z.string(),
@@ -41,3 +31,5 @@ export const ConvertToMarkdownOutputSchema = z.object({
   })),
 });
 export type ConvertToMarkdownOutput = z.infer<typeof ConvertToMarkdownOutputSchema>;
+
+    

@@ -46,10 +46,138 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { convertToMarkdown } from '@/ai/flows/convert-to-markdown-flow';
-import type { ConvertToMarkdownInput, ConvertToMarkdownOutput, FormattingOptions, NamingOptions } from '@/ai/schemas';
+import type { ConvertToMarkdownOutput, FormattingOptions, NamingOptions } from '@/ai/schemas';
 import * as cheerio from 'cheerio';
 import { format } from 'date-fns';
+import TurndownService from 'turndown';
+
+const turndownService = new TurndownService();
+
+// --- Conversion Logic Moved from Server to Client ---
+
+/**
+ * Parses a single HTML file content from Google Keep.
+ */
+function parseKeepHtml(htmlContent: string) {
+  const $ = cheerio.load(htmlContent);
+
+  const title = $('.title').text().trim() || null;
+  const creationTimeText = $('.heading').text().trim();
+  
+  let creationTime = new Date(); // Default to now if parsing fails
+  if (creationTimeText) {
+    try {
+      // The date format is like "Mon, 23 Oct 2023, 19:54:15 UTC"
+      const parsedDate = new Date(creationTimeText.replace(/, /g, ' '));
+      if (!isNaN(parsedDate.getTime())) {
+        creationTime = parsedDate;
+      }
+    } catch (e) {
+      console.error(`Could not parse date: ${creationTimeText}`);
+    }
+  }
+
+  const tags = $('.chips .label-name').map((i, el) => $(el).text().trim()).get();
+  const contentHtml = $('.content').html() || '';
+  const content = turndownService.turndown(contentHtml);
+
+  const attachments = $('.attachments img').map((i, el) => $(el).attr('src')).get();
+
+  return {
+    title,
+    creationTime,
+    tags,
+    content,
+    attachments,
+  };
+}
+
+function formatTag(tag: string, format: 'links' | 'hash' | 'atlinks'): string {
+    switch (format) {
+        case 'links':
+            return `[[${tag}]]`;
+        case 'hash':
+            return `#${tag.replace(/\s+/g, '-')}`;
+        case 'atlinks':
+            return `@${tag}`;
+    }
+}
+
+/**
+ * Converts extracted data into Markdown format.
+ */
+function formatMarkdown(data: ReturnType<typeof parseKeepHtml>, formattingOptions: FormattingOptions) {
+  const markdown = [];
+  markdown.push(`# ${data.title || 'Untitled'}\n`);
+  markdown.push(`**Created:** ${format(data.creationTime, 'yyyy-MM-dd HH:mm:ss')}\n`);
+  if (data.tags.length > 0) {
+    const formattedTags = data.tags.map(tag => formatTag(tag, formattingOptions.tagHandling));
+    markdown.push(`**Tags:** ${formattedTags.join(' ')}\n`);
+  }
+  markdown.push(`${data.content}\n`);
+  if (data.attachments.length > 0) {
+    for (const attachment of data.attachments) {
+      const filename = attachment.split('/').pop();
+      markdown.push(`![[${filename}]]`);
+    }
+  }
+  return markdown.join('\n');
+}
+
+/**
+ * Creates the filename for the markdown file.
+ */
+function createFilename(data: ReturnType<typeof parseKeepHtml>, options: NamingOptions, serial: number): string {
+  const parts: string[] = [];
+  
+  let titlePart = '';
+
+  if (options.useTitle && data.title) {
+    titlePart = data.title;
+  } else if (options.useBody) {
+    const cleanContent = data.content.replace(/\s+/g, ' ').trim();
+    let snippet = '';
+    if (options.bodyUnit === 'characters') {
+      snippet = cleanContent.substring(0, options.bodyLength);
+    } else if (options.bodyUnit === 'words') {
+      snippet = cleanContent.split(/\s+/).slice(0, options.bodyLength).join(' ');
+    } else { // lines
+      snippet = data.content.split('\n').slice(0, options.bodyLength).join(' ').replace(/\s+/g, ' ').trim();
+    }
+    titlePart = snippet;
+  }
+  
+  if (!titlePart) {
+      titlePart = 'Untitled';
+  }
+
+  titlePart = titlePart.replace(/[\\/]/g, '-'); // Sanitize
+
+  const datePart = options.useDate ? format(data.creationTime, options.dateFormat) : '';
+  const timePart = options.useTime ? format(now, options.timeFormat) : '';
+  const dateTimePart = [datePart, timePart].filter(Boolean).join('_');
+  
+  if (dateTimePart) {
+      if (options.datePosition === 'prepend') {
+          parts.unshift(dateTimePart);
+      }
+  }
+
+  parts.push(titlePart);
+
+  if (dateTimePart && options.datePosition === 'append') {
+      parts.push(dateTimePart);
+  }
+
+  if (options.useSerial && options.useDate) {
+    const padding = parseInt(options.serialPadding, 10).toString().length;
+    parts.push(serial.toString().padStart(padding, '0'));
+  }
+
+  return parts.join(' - ').replace(/\s+/g, ' ').trim() + '.md';
+}
+
+// --- End of Moved Conversion Logic ---
 
 
 const InfoTooltip = ({ children }: { children: React.ReactNode }) => (
@@ -148,27 +276,45 @@ export function FileProcessingArea() {
     }
 
     try {
-      const fileContents: ConvertToMarkdownInput['files'] = [];
-      for (const file of htmlFiles) {
-          const content = await file.text();
-          fileContents.push({ path: file.name, content });
+      const fileContents = await Promise.all(htmlFiles.map(async file => ({
+        path: file.name,
+        content: await file.text()
+      })));
+
+      // Perform conversion logic directly on the client
+      const filesWithData = fileContents.map(file => {
+        const data = parseKeepHtml(file.content);
+        return { file, data };
+      });
+
+      if (namingOptions.useDate) {
+        filesWithData.sort((a, b) => a.data.creationTime.getTime() - b.data.creationTime.getTime());
       }
 
-      const input: ConvertToMarkdownInput = {
-        files: fileContents,
-        namingOptions,
-        formattingOptions,
-      };
+      const totalFiles = filesWithData.length;
+      const newlyConvertedFiles: ConvertToMarkdownOutput['convertedFiles'] = [];
+      
+      for (let i = 0; i < totalFiles; i++) {
+        const { file, data } = filesWithData[i];
+        const markdownContent = formatMarkdown(data, formattingOptions);
+        const newFilename = createFilename(data, namingOptions, i + 1);
 
-      // In a real scenario with many files, you might process them in chunks.
-      // For this implementation, we'll simulate progress with the flow.
-      // Let's assume the flow can give us progress updates, or we fake it.
-      // Since our current flow processes all at once, we'll update progress based on the returned files.
+        newlyConvertedFiles.push({
+          originalPath: file.path,
+          newPath: newFilename,
+          content: markdownContent,
+        });
 
-      const result = await convertToMarkdown(input);
+        if (!preview) {
+            await new Promise(resolve => setTimeout(resolve, 5)); // Small delay for UI update
+            setStatusText(`Converting ${i + 1} of ${totalFiles}...`);
+            setProgress(((i + 1) / totalFiles) * 100);
+        }
+      }
+      
+      const result = { convertedFiles: newlyConvertedFiles };
 
       if (result && result.convertedFiles) {
-        const totalFiles = result.convertedFiles.length;
         if (preview) {
            setConvertedFiles(result.convertedFiles);
            setStatusText('Preview ready.');
@@ -178,13 +324,7 @@ export function FileProcessingArea() {
               description: `Showing preview for the first of ${totalFiles} files.`,
           });
         } else {
-          // Simulate progress for download
           setConvertedFiles(result.convertedFiles);
-          for (let i = 0; i < totalFiles; i++) {
-              await new Promise(resolve => setTimeout(resolve, 5)); // Small delay
-              setStatusText(`Converting ${i + 1} of ${totalFiles}...`);
-              setProgress(((i + 1) / totalFiles) * 100);
-          }
           setStatusText('Conversion complete! Downloading files...');
           downloadAllFiles(result.convertedFiles);
           toast({
@@ -195,7 +335,6 @@ export function FileProcessingArea() {
         
         if (preview && result.convertedFiles.length > 0) {
             setPreviewFile(result.convertedFiles[0]);
-            // Use a timeout to ensure the dialog trigger is available
             setTimeout(() => document.getElementById('preview-dialog-trigger')?.click(), 0);
         }
       } else {
@@ -212,7 +351,6 @@ export function FileProcessingArea() {
       });
     } finally {
       if (!preview) {
-        // Keep progress bar at 100 for a moment before resetting
         setTimeout(() => {
           setIsLoading(false);
           setStatusText('');
@@ -239,7 +377,6 @@ export function FileProcessingArea() {
   const downloadAllFiles = (filesToDownload = convertedFiles) => {
     filesToDownload.forEach(file => downloadFile({newPath: file.newPath, content: file.content}));
     
-    // Download asset files
     assetFiles.forEach(file => {
         const url = URL.createObjectURL(file);
         const a = document.createElement('a');
@@ -677,3 +814,5 @@ export function FileProcessingArea() {
     </div>
   );
 }
+
+    
