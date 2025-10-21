@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useRef, type ChangeEvent } from 'react';
@@ -175,29 +176,67 @@ export function FileProcessingArea() {
 
   const getFilenamePreview = () => {
     const parts: string[] = [];
-    if (namingOptions.datePosition === 'prepend') {
-        if(namingOptions.useDate) parts.push('2024-01-23');
-        if(namingOptions.useTime) parts.push('12-34-56');
+    const datePart = '2024-01-23';
+    const timePart = '12-34-56';
+    const dateTimePart = [namingOptions.useDate ? datePart : null, namingOptions.useTime ? timePart : null].filter(Boolean).join('_');
+
+    if (namingOptions.datePosition === 'prepend' && dateTimePart) {
+        parts.push(dateTimePart);
     }
 
-    if (namingOptions.useTitle) parts.push('Insert Title');
-    if (namingOptions.useBody && !namingOptions.useTitle) parts.push('Do you ever feel like a plastic bag...');
+    if (namingOptions.useTitle) {
+      parts.push('My Note Title');
+    }
+    if (namingOptions.useBody && !namingOptions.useTitle) {
+      parts.push('This is the beginning of the note content...'.substring(0, namingOptions.bodyCharCount));
+    }
     
-    if (namingOptions.datePosition === 'append') {
-        if(namingOptions.useDate) parts.push('2024-01-23');
-        if(namingOptions.useTime) parts.push('12-34-56');
+    if (namingOptions.datePosition === 'append' && dateTimePart) {
+        parts.push(dateTimePart);
     }
     
     if (namingOptions.useSerial) {
-        const padding = parseInt(namingOptions.serialPadding, 10).toString().length;
-        parts.push('1'.padStart(padding, '0'));
+        let serial = '1';
+        if (namingOptions.serialPadding === '01') serial = '01';
+        if (namingOptions.serialPadding === '001') serial = '001';
+        if (namingOptions.serialPadding === '0001') serial = '0001';
+        parts.push(serial);
     }
 
-    return parts.join(' - ').replace(/\s+/g, ' ').trim() + '.md';
+    let preview = parts.join(' - ').replace(/\s+/g, ' ').trim();
+    if (!preview) {
+        preview = "Untitled"
+    }
+
+    return preview + '.md';
   }
 
   const handlePreviewClick = async () => {
     await handleRunConversion(true);
+  }
+
+  // A simple function to convert markdown-style image links to HTML img tags
+  const renderMarkdownContent = (content: string) => {
+    // Convert Obsidian-style wikilinks for images to standard markdown
+    let renderedContent = content.replace(/!\[\[(.*?)\]\]/g, (match, p1) => {
+      // For the preview, we need a valid src. Since we don't have the images,
+      // we'll use a placeholder. This part would need actual image handling
+      // if the source images were available to the component.
+      // For now, let's assume attachments are handled separately or we just show the name.
+      return `\n**Attachment:** ${p1}\n`;
+    });
+    
+    // This is a very basic renderer. For a full-featured preview,
+    // a library like 'react-markdown' would be ideal.
+    return renderedContent.split('\n').map((line, i) => {
+        if (line.startsWith('# ')) return <h1 key={i} className="text-3xl font-bold mt-4 mb-2">{line.substring(2)}</h1>;
+        if (line.startsWith('## ')) return <h2 key={i} className="text-2xl font-bold mt-3 mb-1.5">{line.substring(3)}</h2>;
+        if (line.startsWith('### ')) return <h3 key={i} className="text-xl font-bold mt-2 mb-1">{line.substring(4)}</h3>;
+        if (line.startsWith('**Tags:**')) return <p key={i} className="my-2">{line}</p>;
+        if (line.startsWith('**Created:**')) return <p key={i} className="text-sm text-muted-foreground mb-4">{line}</p>;
+        if (line.trim() === '') return <br key={i} />;
+        return <p key={i}>{line}</p>;
+    });
   }
 
   return (
@@ -399,10 +438,8 @@ export function FileProcessingArea() {
                             <ScrollArea className="col-span-2 border rounded-lg">
                                 {previewFile ? (
                                     <div className="p-4">
-                                        <div className="prose prose-invert max-w-none">
-                                            <pre className="whitespace-pre-wrap font-body text-foreground">
-                                                {previewFile.content}
-                                            </pre>
+                                        <div className="prose prose-invert max-w-none prose-p:my-2 prose-h1:mb-4 prose-h1:mt-2 prose-h2:mb-3 prose-h2:mt-1.5 prose-h3:mb-2 prose-h3:mt-1 font-body text-foreground">
+                                          {renderMarkdownContent(previewFile.content)}
                                         </div>
                                     </div>
                                 ) : (
@@ -430,3 +467,5 @@ export function FileProcessingArea() {
     </div>
   );
 }
+
+    
