@@ -71,6 +71,7 @@ export function FileProcessingArea() {
   const [htmlFiles, setHtmlFiles] = useState<File[]>([]);
   const [assetFiles, setAssetFiles] = useState<File[]>([]);
   const [firstNoteTitle, setFirstNoteTitle] = useState<string>('My Note Title');
+  const [filenamePreview, setFilenamePreview] = useState<string>('');
 
   const [namingOptions, setNamingOptions] = useState<NamingOptions>({
     useTitle: true,
@@ -221,63 +222,66 @@ export function FileProcessingArea() {
     });
   }
 
-
-  const getFilenamePreview = () => {
-    const parts: string[] = [];
-    const now = new Date();
-    const datePart = namingOptions.useDate ? format(now, namingOptions.dateFormat) : '';
-    const timePart = namingOptions.useTime ? format(now, namingOptions.timeFormat) : '';
-    const dateTimePart = [datePart, timePart].filter(Boolean).join('_');
-
-    if (namingOptions.datePosition === 'prepend' && dateTimePart) {
-        parts.push(dateTimePart);
+  useEffect(() => {
+    const getFilenamePreview = () => {
+      const parts: string[] = [];
+      const now = new Date();
+      const datePart = namingOptions.useDate ? format(now, namingOptions.dateFormat) : '';
+      const timePart = namingOptions.useTime ? format(now, namingOptions.timeFormat) : '';
+      const dateTimePart = [datePart, timePart].filter(Boolean).join('_');
+  
+      if (namingOptions.datePosition === 'prepend' && dateTimePart) {
+          parts.push(dateTimePart);
+      }
+  
+      let titlePart = firstNoteTitle;
+      if (!namingOptions.useTitle && namingOptions.useBody) { // Simplified for preview
+          const bodyContent = "This is the beginning of the note content and it can be quite long.";
+          let bodySnippet = "";
+          switch (namingOptions.bodyUnit) {
+              case 'characters':
+                  bodySnippet = bodyContent.substring(0, namingOptions.bodyLength);
+                  break;
+              case 'words':
+                  bodySnippet = bodyContent.split(/\s+/).slice(0, namingOptions.bodyLength).join(' ');
+                  break;
+              case 'lines':
+                  bodySnippet = bodyContent.split('\n').slice(0, namingOptions.bodyLength).join(' ');
+                  break;
+          }
+          titlePart = bodySnippet || "Untitled";
+      } else if (namingOptions.useTitle) {
+        // Show title
+      } else if (namingOptions.useBody) {
+        titlePart = `${firstNoteTitle} (or first ${namingOptions.bodyLength} ${namingOptions.bodyUnit} of body)`;
+      } else {
+          titlePart = "Untitled";
+      }
+      
+      if (titlePart) parts.push(titlePart);
+      
+      if (namingOptions.datePosition === 'append' && dateTimePart) {
+          parts.push(dateTimePart);
+      }
+      
+      if (namingOptions.useSerial && namingOptions.useDate) {
+          let serial = '1';
+          if (namingOptions.serialPadding === '01') serial = '01';
+          if (namingOptions.serialPadding === '001') serial = '001';
+          if (namingOptions.serialPadding === '0001') serial = '0001';
+          parts.push(serial);
+      }
+  
+      let preview = parts.join(' - ').replace(/\s+/g, ' ').trim();
+      if (!preview) {
+          preview = "Untitled"
+      }
+  
+      setFilenamePreview(preview + '.md');
     }
+    getFilenamePreview();
+  }, [namingOptions, firstNoteTitle]);
 
-    let titlePart = firstNoteTitle;
-    if (!namingOptions.useTitle && namingOptions.useBody) { // Simplified for preview
-        const bodyContent = "This is the beginning of the note content and it can be quite long.";
-        let bodySnippet = "";
-        switch (namingOptions.bodyUnit) {
-            case 'characters':
-                bodySnippet = bodyContent.substring(0, namingOptions.bodyLength);
-                break;
-            case 'words':
-                bodySnippet = bodyContent.split(/\s+/).slice(0, namingOptions.bodyLength).join(' ');
-                break;
-            case 'lines':
-                bodySnippet = bodyContent.split('\n').slice(0, namingOptions.bodyLength).join(' ');
-                break;
-        }
-        titlePart = bodySnippet || "Untitled";
-    } else if (namingOptions.useTitle) {
-      // Show title
-    } else if (namingOptions.useBody) {
-      titlePart = `${firstNoteTitle} (or first ${namingOptions.bodyLength} ${namingOptions.bodyUnit} of body)`;
-    } else {
-        titlePart = "Untitled";
-    }
-    
-    if (titlePart) parts.push(titlePart);
-    
-    if (namingOptions.datePosition === 'append' && dateTimePart) {
-        parts.push(dateTimePart);
-    }
-    
-    if (namingOptions.useSerial && namingOptions.useDate) {
-        let serial = '1';
-        if (namingOptions.serialPadding === '01') serial = '01';
-        if (namingOptions.serialPadding === '001') serial = '001';
-        if (namingOptions.serialPadding === '0001') serial = '0001';
-        parts.push(serial);
-    }
-
-    let preview = parts.join(' - ').replace(/\s+/g, ' ').trim();
-    if (!preview) {
-        preview = "Untitled"
-    }
-
-    return preview + '.md';
-  }
 
   const handlePreviewClick = async () => {
     await handleRunConversion(true);
@@ -522,7 +526,7 @@ export function FileProcessingArea() {
 
                     <div className="bg-secondary p-3 rounded-md text-sm text-muted-foreground flex items-center gap-2">
                         <Eye className="h-4 w-4 text-primary shrink-0"/>
-                        <span className="truncate">{getFilenamePreview()}</span>
+                        <span className="truncate">{filenamePreview}</span>
                     </div>
 
                 </CardContent>
