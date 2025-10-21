@@ -281,6 +281,7 @@ export function FileProcessingArea() {
                         </div>
                     </div>
 
+                    {namingOptions.useDate && (
                     <div>
                         <Label className="font-semibold">Date <span className="text-muted-foreground font-normal">sorting is chronological</span></Label>
                         <RadioGroup value={namingOptions.datePosition} onValueChange={(value: 'prepend' | 'append') => setNamingOptions(prev => ({ ...prev, datePosition: value }))} className="flex mt-2">
@@ -294,7 +295,9 @@ export function FileProcessingArea() {
                             </div>
                         </RadioGroup>
                     </div>
+                    )}
 
+                    {namingOptions.useSerial && (
                     <div>
                         <Label className="font-semibold flex items-center">Serial start with <InfoTooltip>Choose the padding for your serial numbers.</InfoTooltip></Label>
                         <RadioGroup value={namingOptions.serialPadding} onValueChange={(value) => setNamingOptions(prev => ({ ...prev, serialPadding: value as '1' | '01' | '001' | '0001' }))} className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
@@ -316,6 +319,7 @@ export function FileProcessingArea() {
                             </div>
                         </RadioGroup>
                     </div>
+                    )}
 
                     <div className="bg-secondary p-3 rounded-md text-sm text-muted-foreground flex items-center gap-2">
                         <Eye className="h-4 w-4 text-primary shrink-0"/>
