@@ -4,7 +4,8 @@ import { z } from 'zod';
 export const NamingOptionsSchema = z.object({
   useTitle: z.boolean(),
   useBody: z.boolean(),
-  bodyCharCount: z.number(),
+  bodyLength: z.number(),
+  bodyUnit: z.enum(['characters', 'words', 'lines']),
   useDate: z.boolean(),
   useTime: z.boolean(),
   useSerial: z.boolean(),
@@ -38,3 +39,5 @@ export const ConvertToMarkdownOutputSchema = z.object({
   })),
 });
 export type ConvertToMarkdownOutput = z.infer<typeof ConvertToMarkdownOutputSchema>;
+
+    

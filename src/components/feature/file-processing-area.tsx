@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useRef, type ChangeEvent } from 'react';
@@ -72,7 +73,8 @@ export function FileProcessingArea() {
   const [namingOptions, setNamingOptions] = useState<NamingOptions>({
     useTitle: true,
     useBody: true,
-    bodyCharCount: 30,
+    bodyLength: 30,
+    bodyUnit: 'characters',
     useDate: true,
     useTime: false,
     useSerial: false,
@@ -184,12 +186,31 @@ export function FileProcessingArea() {
         parts.push(dateTimePart);
     }
 
-    if (namingOptions.useTitle) {
-      parts.push('My Note Title');
+    let titlePart = 'My Note Title';
+    if (!namingOptions.useTitle && namingOptions.useBody) { // Simplified for preview
+        const bodyContent = "This is the beginning of the note content and it can be quite long.";
+        let bodySnippet = "";
+        switch (namingOptions.bodyUnit) {
+            case 'characters':
+                bodySnippet = bodyContent.substring(0, namingOptions.bodyLength);
+                break;
+            case 'words':
+                bodySnippet = bodyContent.split(/\s+/).slice(0, namingOptions.bodyLength).join(' ');
+                break;
+            case 'lines':
+                bodySnippet = bodyContent.split('\n').slice(0, namingOptions.bodyLength).join(' ');
+                break;
+        }
+        titlePart = bodySnippet;
+    } else if (namingOptions.useTitle) {
+      // Show title
+    } else if (namingOptions.useBody) {
+      titlePart = `My Note Title (or first ${namingOptions.bodyLength} ${namingOptions.bodyUnit} of body)`;
+    } else {
+        titlePart = "";
     }
-    if (namingOptions.useBody && !namingOptions.useTitle) {
-      parts.push('This is the beginning of the note content...'.substring(0, namingOptions.bodyCharCount));
-    }
+    
+    if (titlePart) parts.push(titlePart);
     
     if (namingOptions.datePosition === 'append' && dateTimePart) {
         parts.push(dateTimePart);
@@ -291,21 +312,19 @@ export function FileProcessingArea() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 items-center">
                          <div className="flex items-center space-x-2">
                             <Checkbox id="title" checked={namingOptions.useTitle} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useTitle: !!checked }))} />
-                            <Label htmlFor="title">Title</Label>
+                            <Label htmlFor="title">From Title</Label>
                         </div>
                         <div className="flex items-center space-x-2">
                             <Checkbox id="body" checked={namingOptions.useBody} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useBody: !!checked }))} />
-                            <Label htmlFor="body">Body</Label>
+                            <Label htmlFor="body" className="flex items-center">
+                              From Body
+                              <InfoTooltip>Use the first part of the body as a fallback if the note has no title.</InfoTooltip>
+                            </Label>
                         </div>
-                        <div className="flex items-center space-x-2">
-                           <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setNamingOptions(p => ({ ...p, bodyCharCount: Math.max(1, p.bodyCharCount - 1) }))}><Minus className="h-4 w-4"/></Button>
-                           <span className="w-6 text-center">{namingOptions.bodyCharCount}</span>
-                           <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setNamingOptions(p => ({ ...p, bodyCharCount: p.bodyCharCount + 1 }))}><Plus className="h-4 w-4"/></Button>
-                           <Label>Chars</Label>
-                        </div>
+                        <div/>
                         <div className="flex items-center space-x-2">
                             <Checkbox id="date" checked={namingOptions.useDate} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useDate: !!checked }))} />
                             <Label htmlFor="date">Date</Label>
@@ -319,9 +338,31 @@ export function FileProcessingArea() {
                             <Label htmlFor="serial">Serial</Label>
                         </div>
                     </div>
+                    
+                    {namingOptions.useBody && (
+                    <div className="space-y-2 pt-4 border-t border-border">
+                        <Label className="font-semibold">Body for title options</Label>
+                        <div className="flex items-center space-x-2">
+                           <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setNamingOptions(p => ({ ...p, bodyLength: Math.max(1, p.bodyLength - 1) }))}><Minus className="h-4 w-4"/></Button>
+                           <span className="w-8 text-center text-sm">{namingOptions.bodyLength}</span>
+                           <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setNamingOptions(p => ({ ...p, bodyLength: p.bodyLength + 1 }))}><Plus className="h-4 w-4"/></Button>
+                           <Select value={namingOptions.bodyUnit} onValueChange={(value: 'characters' | 'words' | 'lines') => setNamingOptions(p => ({...p, bodyUnit: value}))}>
+                               <SelectTrigger className="w-[120px] h-7 text-sm">
+                                   <SelectValue />
+                               </SelectTrigger>
+                               <SelectContent>
+                                   <SelectItem value="characters">characters</SelectItem>
+                                   <SelectItem value="words">words</SelectItem>
+                                   <SelectItem value="lines">lines</SelectItem>
+                               </SelectContent>
+                           </Select>
+                        </div>
+                    </div>
+                    )}
+
 
                     {namingOptions.useDate && (
-                    <div>
+                    <div className="space-y-2 pt-4 border-t border-border">
                         <Label className="font-semibold">Date <span className="text-muted-foreground font-normal">sorting is chronological</span></Label>
                         <RadioGroup value={namingOptions.datePosition} onValueChange={(value: 'prepend' | 'append') => setNamingOptions(prev => ({ ...prev, datePosition: value }))} className="flex mt-2">
                             <div className="flex items-center space-x-2">
@@ -337,7 +378,7 @@ export function FileProcessingArea() {
                     )}
 
                     {namingOptions.useSerial && (
-                    <div>
+                    <div className="space-y-2 pt-4 border-t border-border">
                         <Label className="font-semibold flex items-center">Serial start with <InfoTooltip>Choose the padding for your serial numbers.</InfoTooltip></Label>
                         <RadioGroup value={namingOptions.serialPadding} onValueChange={(value) => setNamingOptions(prev => ({ ...prev, serialPadding: value as '1' | '01' | '001' | '0001' }))} className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
                              <div className="flex items-center space-x-2">

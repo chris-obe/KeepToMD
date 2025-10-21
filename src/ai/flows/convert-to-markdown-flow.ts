@@ -91,15 +91,30 @@ function formatMarkdown(data: ReturnType<typeof parseKeepHtml>, formattingOption
  */
 function createFilename(data: ReturnType<typeof parseKeepHtml>, options: NamingOptions, serial: number): string {
   const parts: string[] = [];
+  
+  let titlePart = '';
 
   if (options.useTitle && data.title) {
-    parts.push(data.title.replace(/[\\/]/g, '-'));
-  }
-  if (options.useBody && !data.title) {
+    titlePart = data.title;
+  } else if (options.useBody) {
     const cleanContent = data.content.replace(/\s+/g, ' ').trim();
-    parts.push(cleanContent.substring(0, options.bodyCharCount));
+    let snippet = '';
+    if (options.bodyUnit === 'characters') {
+      snippet = cleanContent.substring(0, options.bodyLength);
+    } else if (options.bodyUnit === 'words') {
+      snippet = cleanContent.split(/\s+/).slice(0, options.bodyLength).join(' ');
+    } else { // lines
+      snippet = data.content.split('\n').slice(0, options.bodyLength).join(' ').replace(/\s+/g, ' ').trim();
+    }
+    titlePart = snippet;
   }
   
+  if (!titlePart) {
+      titlePart = 'Untitled';
+  }
+
+  titlePart = titlePart.replace(/[\\/]/g, '-'); // Sanitize
+
   const datePart = options.useDate ? format(data.creationTime, 'yyyy-MM-dd') : '';
   const timePart = options.useTime ? format(data.creationTime, 'HH-mm-ss') : '';
   const dateTimePart = [datePart, timePart].filter(Boolean).join('_');
@@ -107,9 +122,13 @@ function createFilename(data: ReturnType<typeof parseKeepHtml>, options: NamingO
   if (dateTimePart) {
       if (options.datePosition === 'prepend') {
           parts.unshift(dateTimePart);
-      } else {
-          parts.push(dateTimePart);
       }
+  }
+
+  parts.push(titlePart);
+
+  if (dateTimePart && options.datePosition === 'append') {
+      parts.push(dateTimePart);
   }
 
   if (options.useSerial) {
@@ -159,3 +178,5 @@ const convertToMarkdownFlow = ai.defineFlow(
 export async function convertToMarkdown(input: ConvertToMarkdownInput): Promise<ConvertToMarkdownOutput> {
   return convertToMarkdownFlow(input);
 }
+
+    
