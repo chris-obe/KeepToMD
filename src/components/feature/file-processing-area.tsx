@@ -48,7 +48,8 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { convertToMarkdown, type ConvertToMarkdownInput, type ConvertToMarkdownOutput } from '@/ai/flows/convert-to-markdown-flow';
+import { convertToMarkdown } from '@/ai/flows/convert-to-markdown-flow';
+import type { ConvertToMarkdownInput, ConvertToMarkdownOutput, FormattingOptions, NamingOptions } from '@/ai/schemas';
 
 const InfoTooltip = ({ children }: { children: React.ReactNode }) => (
   <TooltipProvider>
@@ -64,9 +65,6 @@ const InfoTooltip = ({ children }: { children: React.ReactNode }) => (
     </Tooltip>
   </TooltipProvider>
 );
-
-type NamingOptions = ConvertToMarkdownInput['namingOptions'];
-type FormattingOptions = ConvertToMarkdownInput['formattingOptions'];
 
 export function FileProcessingArea() {
   const [files, setFiles] = useState<File[]>([]);
@@ -107,7 +105,9 @@ export function FileProcessingArea() {
     }
 
     setIsLoading(true);
-    setConvertedFiles([]);
+    if (!preview) {
+      setConvertedFiles([]);
+    }
 
     try {
       const fileContents = await Promise.all(
@@ -136,7 +136,10 @@ export function FileProcessingArea() {
           description: `${result.convertedFiles.length} files have been converted.`,
         });
         if (preview && result.convertedFiles.length > 0) {
+            setPreviewFile(result.convertedFiles[0]);
             document.getElementById('preview-dialog-trigger')?.click();
+        } else if (!preview) {
+            downloadAllFiles(result.convertedFiles);
         }
       } else {
         throw new Error("Conversion resulted in an unexpected format.");
@@ -165,8 +168,8 @@ export function FileProcessingArea() {
     URL.revokeObjectURL(url);
   };
   
-  const downloadAllFiles = () => {
-    convertedFiles.forEach(file => downloadFile(file));
+  const downloadAllFiles = (filesToDownload = convertedFiles) => {
+    filesToDownload.forEach(file => downloadFile(file));
   }
 
 
@@ -178,7 +181,7 @@ export function FileProcessingArea() {
     }
 
     if (namingOptions.useTitle) parts.push('Insert Title');
-    if (namingOptions.useBody) parts.push('Do you ever feel like a plastic bag...');
+    if (namingOptions.useBody && !namingOptions.useTitle) parts.push('Do you ever feel like a plastic bag...');
     
     if (namingOptions.datePosition === 'append') {
         if(namingOptions.useDate) parts.push('2024-01-23');
@@ -193,6 +196,10 @@ export function FileProcessingArea() {
     return parts.join(' - ').replace(/\s+/g, ' ').trim() + '.md';
   }
 
+  const handlePreviewClick = async () => {
+    await handleRunConversion(true);
+  }
+
   return (
     <div className="w-full max-w-4xl animate-in fade-in-50 duration-500">
       <input
@@ -202,11 +209,12 @@ export function FileProcessingArea() {
         className="hidden"
         multiple
         accept=".html"
+        webkitdirectory=""
       />
       <Accordion type="multiple" defaultValue={['item-1', 'item-2', 'item-3']} className="w-full space-y-4">
         {/* Import Section */}
         <AccordionItem value="item-1" className="border rounded-lg bg-card overflow-hidden">
-          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-primary/10 hover:no-underline">
+          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-primary/10 hover:no-underline [&[data-state=open]>svg]:hidden [&[data-state=closed]>svg]:hidden">
             <div className="flex items-center gap-2">
               <Upload className="h-5 w-5 text-primary" />
               <span>Import</span>
@@ -228,7 +236,7 @@ export function FileProcessingArea() {
 
         {/* Process Section */}
         <AccordionItem value="item-2" className="border rounded-lg bg-card overflow-hidden">
-          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-accent/10 hover:no-underline">
+          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-accent/10 hover:no-underline [&[data-state=open]>svg]:hidden [&[data-state=closed]>svg]:hidden">
              <div className="flex items-center gap-2">
                 <Cog className="h-5 w-5 text-accent" />
                 <span>Process</span>
@@ -352,7 +360,7 @@ export function FileProcessingArea() {
 
         {/* Finish Section */}
         <AccordionItem value="item-3" className="border rounded-lg bg-card overflow-hidden">
-          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-purple-500/10 hover:no-underline">
+          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-purple-500/10 hover:no-underline [&[data-state=open]>svg]:hidden [&[data-state=closed]>svg]:hidden">
              <div className="flex items-center gap-2">
                 <FileText className="h-5 w-5 text-purple-400" />
                 <span>Finish</span>
@@ -362,9 +370,9 @@ export function FileProcessingArea() {
             <div className="flex flex-col sm:flex-row gap-4">
                  <Dialog>
                     <DialogTrigger asChild>
-                        <Button id="preview-dialog-trigger" size="lg" className="w-full" onClick={() => handleRunConversion(true)} disabled={isLoading || files.length === 0}>
-                            {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Eye className="mr-2 h-5 w-5" />}
-                            {isLoading ? 'Processing...' : 'Preview'}
+                        <Button id="preview-dialog-trigger" size="lg" className="w-full" onClick={handlePreviewClick} disabled={isLoading || files.length === 0}>
+                            {isLoading && convertedFiles.length === 0 ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Eye className="mr-2 h-5 w-5" />}
+                            {isLoading && convertedFiles.length === 0 ? 'Processing...' : 'Preview'}
                         </Button>
                     </DialogTrigger>
                     <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
@@ -402,7 +410,7 @@ export function FileProcessingArea() {
                         </div>
                         <div className="flex justify-end gap-2 pt-4">
                             {previewFile && <Button variant="outline" onClick={() => downloadFile(previewFile)}>Download Selected</Button>}
-                            <Button onClick={downloadAllFiles}>Download All</Button>
+                            <Button onClick={() => downloadAllFiles()}>Download All</Button>
                         </div>
                     </DialogContent>
                  </Dialog>

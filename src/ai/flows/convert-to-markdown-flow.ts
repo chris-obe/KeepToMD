@@ -3,52 +3,15 @@
  * @fileOverview A flow for converting Google Keep HTML files to Obsidian-compatible Markdown.
  *
  * - convertToMarkdown - A function that handles the conversion process.
- * - ConvertToMarkdownInput - The input type for the convertToMarkdown function.
- * - ConvertToMarkdownOutput - The return type for the convertToMarkdown function.
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { ConvertToMarkdownInputSchema, ConvertToMarkdownOutputSchema, type ConvertToMarkdownInput, type ConvertToMarkdownOutput, type FormattingOptions, type NamingOptions } from '@/ai/schemas';
 import * as cheerio from 'cheerio';
 import TurndownService from 'turndown';
 import { format } from 'date-fns';
 
 const turndownService = new TurndownService();
-
-// Schemas based on the UI controls
-const NamingOptionsSchema = z.object({
-  useTitle: z.boolean(),
-  useBody: z.boolean(),
-  bodyCharCount: z.number(),
-  useDate: z.boolean(),
-  useTime: z.boolean(),
-  useSerial: z.boolean(),
-  datePosition: z.enum(['prepend', 'append']),
-  serialPadding: z.enum(['1', '01', '001', '0001']),
-});
-
-const FormattingOptionsSchema = z.object({
-  tagHandling: z.enum(['links', 'hash', 'atlinks']),
-});
-
-export const ConvertToMarkdownInputSchema = z.object({
-  files: z.array(z.object({
-    path: z.string(),
-    content: z.string(),
-  })),
-  namingOptions: NamingOptionsSchema,
-  formattingOptions: FormattingOptionsSchema,
-});
-export type ConvertToMarkdownInput = z.infer<typeof ConvertToMarkdownInputSchema>;
-
-export const ConvertToMarkdownOutputSchema = z.object({
-  convertedFiles: z.array(z.object({
-    originalPath: z.string(),
-    newPath: z.string(),
-    content: z.string(),
-  })),
-});
-export type ConvertToMarkdownOutput = z.infer<typeof ConvertToMarkdownOutputSchema>;
 
 
 /**
@@ -105,7 +68,7 @@ function formatTag(tag: string, format: 'links' | 'hash' | 'atlinks'): string {
 /**
  * Converts extracted data into Markdown format.
  */
-function formatMarkdown(data: ReturnType<typeof parseKeepHtml>, formattingOptions: z.infer<typeof FormattingOptionsSchema>) {
+function formatMarkdown(data: ReturnType<typeof parseKeepHtml>, formattingOptions: FormattingOptions) {
   const markdown = [];
   markdown.push(`# ${data.title || 'Untitled'}\n`);
   markdown.push(`**Created:** ${format(data.creationTime, 'yyyy-MM-dd HH:mm:ss')}\n`);
@@ -126,7 +89,7 @@ function formatMarkdown(data: ReturnType<typeof parseKeepHtml>, formattingOption
 /**
  * Creates the filename for the markdown file.
  */
-function createFilename(data: ReturnType<typeof parseKeepHtml>, options: z.infer<typeof NamingOptionsSchema>, serial: number): string {
+function createFilename(data: ReturnType<typeof parseKeepHtml>, options: NamingOptions, serial: number): string {
   const parts: string[] = [];
 
   if (options.useTitle && data.title) {
@@ -165,7 +128,7 @@ const convertToMarkdownFlow = ai.defineFlow(
     outputSchema: ConvertToMarkdownOutputSchema,
   },
   async (input) => {
-    const convertedFiles: z.infer<typeof ConvertToMarkdownOutputSchema>['convertedFiles'] = [];
+    const convertedFiles: ConvertToMarkdownOutput['convertedFiles'] = [];
     
     // Sort files by creation date if date is used for naming, to have proper serial numbers
     const filesWithData = input.files.map(file => {
