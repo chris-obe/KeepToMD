@@ -274,64 +274,68 @@ export function FileProcessingArea() {
       });
       return;
     }
-
+  
     setIsLoading(true);
     setProgress(0);
     if (!preview) {
       setConvertedFiles([]);
     }
-
+  
     try {
-      const fileContents = await Promise.all(htmlFiles.map(async file => ({
-        path: file.name,
-        content: await file.text()
-      })));
-
-      // Perform conversion logic directly on the client
-      const filesWithData = fileContents.map(file => {
-        const data = parseKeepHtml(file.content);
-        return { file, data };
-      });
-
+      // Create a temporary array of files to be processed
+      let filesToProcess = [...htmlFiles];
+  
+      // If date sorting is enabled, we need to read all dates first.
       if (namingOptions.useDate) {
-        filesWithData.sort((a, b) => a.data.creationTime.getTime() - b.data.creationTime.getTime());
+        const filesWithDates = await Promise.all(
+          filesToProcess.map(async file => {
+            const content = await file.text();
+            const data = parseKeepHtml(content);
+            return { file, date: data.creationTime };
+          })
+        );
+        filesWithDates.sort((a, b) => a.date.getTime() - b.date.getTime());
+        filesToProcess = filesWithDates.map(f => f.file);
       }
       
-      const fileQueue = filesWithData.map(f => f.file.path);
+      const fileQueue = filesToProcess.map(f => f.name);
       setQueuedFiles(fileQueue);
-
+  
       setStatusText(`Starting conversion of ${fileQueue.length} notes...`);
-
-
-      const totalFiles = filesWithData.length;
+  
+      const totalFiles = filesToProcess.length;
       const newlyConvertedFiles: ConvertToMarkdownOutput['convertedFiles'] = [];
       
       for (let i = 0; i < totalFiles; i++) {
-        const { file, data } = filesWithData[i];
+        const file = filesToProcess[i];
         
         if (!preview) {
             const remainingQueue = fileQueue.slice(i + 1);
             setQueuedFiles(remainingQueue);
-            setStatusText(`Converting: ${file.path}`);
+            setStatusText(`Converting: ${file.name}`);
         }
-
+  
+        // Read file content one by one inside the loop
+        const fileContent = await file.text();
+        const data = parseKeepHtml(fileContent);
+        
         const markdownContent = formatMarkdown(data, formattingOptions);
         const newFilename = createFilename(data, namingOptions, i + 1);
-
+  
         newlyConvertedFiles.push({
-          originalPath: file.path,
+          originalPath: file.name,
           newPath: newFilename,
           content: markdownContent,
         });
-
+  
         if (!preview) {
-            await new Promise(resolve => setTimeout(resolve, 20)); // Small delay for UI update
+            await new Promise(resolve => setTimeout(resolve, 5)); // Small delay for UI update
             setProgress(((i + 1) / totalFiles) * 100);
         }
       }
       
       const result = { convertedFiles: newlyConvertedFiles };
-
+  
       if (result && result.convertedFiles) {
         if (preview) {
            setConvertedFiles(result.convertedFiles);
