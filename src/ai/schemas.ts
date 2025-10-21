@@ -7,7 +7,9 @@ export const NamingOptionsSchema = z.object({
   bodyLength: z.number(),
   bodyUnit: z.enum(['characters', 'words', 'lines']),
   useDate: z.boolean(),
+  dateFormat: z.string(),
   useTime: z.boolean(),
+  timeFormat: z.string(),
   useSerial: z.boolean(),
   datePosition: z.enum(['prepend', 'append']),
   serialPadding: z.enum(['1', '01', '001', '0001']),
@@ -39,5 +41,3 @@ export const ConvertToMarkdownOutputSchema = z.object({
   })),
 });
 export type ConvertToMarkdownOutput = z.infer<typeof ConvertToMarkdownOutputSchema>;
-
-    

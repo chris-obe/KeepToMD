@@ -48,6 +48,8 @@ import { useToast } from '@/hooks/use-toast';
 import { convertToMarkdown } from '@/ai/flows/convert-to-markdown-flow';
 import type { ConvertToMarkdownInput, ConvertToMarkdownOutput, FormattingOptions, NamingOptions } from '@/ai/schemas';
 import * as cheerio from 'cheerio';
+import { format } from 'date-fns';
+
 
 const InfoTooltip = ({ children }: { children: React.ReactNode }) => (
   <TooltipProvider>
@@ -76,7 +78,9 @@ export function FileProcessingArea() {
     bodyLength: 30,
     bodyUnit: 'characters',
     useDate: true,
+    dateFormat: 'yyyy-MM-dd',
     useTime: false,
+    timeFormat: 'HH-mm-ss',
     useSerial: false,
     datePosition: 'prepend',
     serialPadding: '1',
@@ -220,9 +224,10 @@ export function FileProcessingArea() {
 
   const getFilenamePreview = () => {
     const parts: string[] = [];
-    const datePart = '2024-01-23';
-    const timePart = '12-34-56';
-    const dateTimePart = [namingOptions.useDate ? datePart : null, namingOptions.useTime ? timePart : null].filter(Boolean).join('_');
+    const now = new Date();
+    const datePart = namingOptions.useDate ? format(now, namingOptions.dateFormat) : '';
+    const timePart = namingOptions.useTime ? format(now, namingOptions.timeFormat) : '';
+    const dateTimePart = [datePart, timePart].filter(Boolean).join('_');
 
     if (namingOptions.datePosition === 'prepend' && dateTimePart) {
         parts.push(dateTimePart);
@@ -258,7 +263,7 @@ export function FileProcessingArea() {
         parts.push(dateTimePart);
     }
     
-    if (namingOptions.useSerial) {
+    if (namingOptions.useSerial && namingOptions.useDate) {
         let serial = '1';
         if (namingOptions.serialPadding === '01') serial = '01';
         if (namingOptions.serialPadding === '001') serial = '001';
@@ -398,7 +403,7 @@ export function FileProcessingArea() {
 
                      <div className="space-y-4">
                         <div className="flex items-center space-x-2">
-                            <Checkbox id="date" checked={namingOptions.useDate} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useDate: !!checked }))} />
+                            <Checkbox id="date" checked={namingOptions.useDate} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useDate: !!checked, useSerial: checked ? prev.useSerial : false }))} />
                             <Label htmlFor="date">Add date</Label>
                         </div>
                          <div className="flex items-center space-x-2">
@@ -406,32 +411,67 @@ export function FileProcessingArea() {
                             <Label htmlFor="time">Add time</Label>
                         </div>
                     </div>
-
-                    {namingOptions.useDate && (
-                    <div className="space-y-2 pt-4 border-t border-border pl-6">
-                        <Label className="font-semibold">Date position</Label>
-                        <RadioGroup value={namingOptions.datePosition} onValueChange={(value: 'prepend' | 'append') => setNamingOptions(prev => ({ ...prev, datePosition: value }))} className="flex mt-2">
-                            <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="prepend" id="prepend" />
-                                <Label htmlFor="prepend">Prepend</Label>
+                    
+                    {(namingOptions.useDate || namingOptions.useTime) && (
+                    <div className="space-y-4 pt-4 border-t border-border pl-6">
+                        {namingOptions.useDate && (
+                            <div className="space-y-2">
+                                <Label className="font-semibold">Date format</Label>
+                                <Select value={namingOptions.dateFormat} onValueChange={(value) => setNamingOptions(p => ({...p, dateFormat: value}))}>
+                                   <SelectTrigger className="w-[180px] h-8 text-sm">
+                                       <SelectValue />
+                                   </SelectTrigger>
+                                   <SelectContent>
+                                       <SelectItem value="yyyy-MM-dd">2024-07-29</SelectItem>
+                                       <SelectItem value="dd-MM-yyyy">29-07-2024</SelectItem>
+                                       <SelectItem value="MM-dd-yyyy">07-29-2024</SelectItem>
+                                       <SelectItem value="yyyyMMdd">20240729</SelectItem>
+                                   </SelectContent>
+                               </Select>
                             </div>
-                            <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="append" id="append" />
-                                <Label htmlFor="append">Append</Label>
+                        )}
+                        {namingOptions.useTime && (
+                           <div className="space-y-2">
+                                <Label className="font-semibold">Time format</Label>
+                                <Select value={namingOptions.timeFormat} onValueChange={(value) => setNamingOptions(p => ({...p, timeFormat: value}))}>
+                                   <SelectTrigger className="w-[180px] h-8 text-sm">
+                                       <SelectValue />
+                                   </SelectTrigger>
+                                   <SelectContent>
+                                       <SelectItem value="HH-mm-ss">14-30-55</SelectItem>
+                                       <SelectItem value="hh-mm-ss a">02-30-55 PM</SelectItem>
+                                       <SelectItem value="HHmmss">143055</SelectItem>
+                                   </SelectContent>
+                               </Select>
                             </div>
-                        </RadioGroup>
+                        )}
+                        <div className="space-y-2">
+                            <Label className="font-semibold">Date position</Label>
+                            <RadioGroup value={namingOptions.datePosition} onValueChange={(value: 'prepend' | 'append') => setNamingOptions(prev => ({ ...prev, datePosition: value }))} className="flex mt-2">
+                                <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="prepend" id="prepend" />
+                                    <Label htmlFor="prepend">Prepend</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="append" id="append" />
+                                    <Label htmlFor="append">Append</Label>
+                                </div>
+                            </RadioGroup>
+                        </div>
                     </div>
                     )}
 
-                    <Separator />
 
+                    <Separator />
+                    
+                    {namingOptions.useDate && (
+                    <>
                     <div className="space-y-4">
                         <div className="flex items-center space-x-2">
                             <Checkbox id="serial" checked={namingOptions.useSerial} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useSerial: !!checked }))} />
                             <Label htmlFor="serial">Add serial number</Label>
                         </div>
                     </div>
-
                     {namingOptions.useSerial && (
                     <div className="space-y-2 pt-4 border-t border-border pl-6">
                         <Label className="font-semibold flex items-center">Serial number padding <InfoTooltip>Choose the padding for your serial numbers. Sorting by date is recommended for predictable numbering.</InfoTooltip></Label>
@@ -455,8 +495,10 @@ export function FileProcessingArea() {
                         </RadioGroup>
                     </div>
                     )}
-
                     <Separator />
+                    </>
+                    )}
+
 
                     <div className="bg-secondary p-3 rounded-md text-sm text-muted-foreground flex items-center gap-2">
                         <Eye className="h-4 w-4 text-primary shrink-0"/>
@@ -570,5 +612,3 @@ export function FileProcessingArea() {
     </div>
   );
 }
-
-    

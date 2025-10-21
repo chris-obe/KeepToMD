@@ -115,8 +115,8 @@ function createFilename(data: ReturnType<typeof parseKeepHtml>, options: NamingO
 
   titlePart = titlePart.replace(/[\\/]/g, '-'); // Sanitize
 
-  const datePart = options.useDate ? format(data.creationTime, 'yyyy-MM-dd') : '';
-  const timePart = options.useTime ? format(data.creationTime, 'HH-mm-ss') : '';
+  const datePart = options.useDate ? format(data.creationTime, options.dateFormat) : '';
+  const timePart = options.useTime ? format(data.creationTime, options.timeFormat) : '';
   const dateTimePart = [datePart, timePart].filter(Boolean).join('_');
   
   if (dateTimePart) {
@@ -131,7 +131,7 @@ function createFilename(data: ReturnType<typeof parseKeepHtml>, options: NamingO
       parts.push(dateTimePart);
   }
 
-  if (options.useSerial) {
+  if (options.useSerial && options.useDate) {
     const padding = parseInt(options.serialPadding, 10).toString().length;
     parts.push(serial.toString().padStart(padding, '0'));
   }
@@ -178,5 +178,3 @@ const convertToMarkdownFlow = ai.defineFlow(
 export async function convertToMarkdown(input: ConvertToMarkdownInput): Promise<ConvertToMarkdownOutput> {
   return convertToMarkdownFlow(input);
 }
-
-    
