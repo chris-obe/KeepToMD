@@ -14,7 +14,8 @@ import {
   Minus,
   Plus,
   Download,
-  Loader2
+  Loader2,
+  ShieldCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -129,6 +130,7 @@ function formatMarkdown(data: ReturnType<typeof parseKeepHtml>, formattingOption
  */
 function createFilename(data: ReturnType<typeof parseKeepHtml>, options: NamingOptions, serial: number): string {
   const parts: string[] = [];
+  const now = new Date();
   
   let titlePart = '';
 
@@ -527,6 +529,10 @@ export function FileProcessingArea() {
                     <p>{assetFiles.length} other assets (images, audio, etc.) found.</p>
                 </div>
               )}
+              <div className="flex items-center gap-2 rounded-lg bg-background/50 p-3 text-sm text-muted-foreground">
+                <ShieldCheck className="h-5 w-5 shrink-0 text-accent" />
+                <p>Your files are processed locally in your browser and never leave your device.</p>
+              </div>
             </div>
           </AccordionContent>
         </AccordionItem>
@@ -814,5 +820,3 @@ export function FileProcessingArea() {
     </div>
   );
 }
-
-    
