@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/dialog"
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { convertToMarkdown } from '@/ai/flows/convert-to-markdown-flow';
 import type { ConvertToMarkdownInput, ConvertToMarkdownOutput, FormattingOptions, NamingOptions } from '@/ai/schemas';
@@ -91,6 +92,8 @@ export function FileProcessingArea() {
   });
   const [convertedFiles, setConvertedFiles] = useState<ConvertToMarkdownOutput['convertedFiles']>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [statusText, setStatusText] = useState('');
   const [previewFile, setPreviewFile] = useState<typeof convertedFiles[0] | null>(null);
 
   const { toast } = useToast();
@@ -100,8 +103,11 @@ export function FileProcessingArea() {
     if (event.target.files) {
         const selectedFiles = Array.from(event.target.files);
         setAllFiles(selectedFiles);
-        setHtmlFiles(selectedFiles.filter(file => file.type === 'text/html'));
+        const htmls = selectedFiles.filter(file => file.type === 'text/html');
+        setHtmlFiles(htmls);
         setAssetFiles(selectedFiles.filter(file => file.type !== 'text/html'));
+        setConvertedFiles([]); // Reset on new file selection
+        setProgress(0);
     }
   };
 
@@ -135,21 +141,18 @@ export function FileProcessingArea() {
     }
 
     setIsLoading(true);
+    setProgress(0);
+    setStatusText('Starting conversion...');
     if (!preview) {
       setConvertedFiles([]);
     }
 
     try {
-      const fileContents = await Promise.all(
-        htmlFiles.map(file =>
-          new Promise<{ path: string; content: string }>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (e) => resolve({ path: file.name, content: e.target?.result as string });
-            reader.onerror = (e) => reject(e);
-            reader.readAsText(file);
-          })
-        )
-      );
+      const fileContents: ConvertToMarkdownInput['files'] = [];
+      for (const file of htmlFiles) {
+          const content = await file.text();
+          fileContents.push({ path: file.name, content });
+      }
 
       const input: ConvertToMarkdownInput = {
         files: fileContents,
@@ -157,21 +160,37 @@ export function FileProcessingArea() {
         formattingOptions,
       };
 
+      // In a real scenario with many files, you might process them in chunks.
+      // For this implementation, we'll simulate progress with the flow.
+      // Let's assume the flow can give us progress updates, or we fake it.
+      // Since our current flow processes all at once, we'll update progress based on the returned files.
+
       const result = await convertToMarkdown(input);
 
       if (result && result.convertedFiles) {
-        setConvertedFiles(result.convertedFiles);
-        if (!preview) {
-            toast({
-                title: "Conversion Successful",
-                description: `${result.convertedFiles.length} notes and ${assetFiles.length} assets are ready for download.`,
-            });
-            downloadAllFiles(result.convertedFiles);
+        const totalFiles = result.convertedFiles.length;
+        if (preview) {
+           setConvertedFiles(result.convertedFiles);
+           setStatusText('Preview ready.');
+           setProgress(100);
+           toast({
+              title: "Preview Generated",
+              description: `Showing preview for the first of ${totalFiles} files.`,
+          });
         } else {
-             toast({
-                title: "Preview Generated",
-                description: `Showing preview for the first of ${result.convertedFiles.length} files.`,
-            });
+          // Simulate progress for download
+          setConvertedFiles(result.convertedFiles);
+          for (let i = 0; i < totalFiles; i++) {
+              await new Promise(resolve => setTimeout(resolve, 5)); // Small delay
+              setStatusText(`Converting ${i + 1} of ${totalFiles}...`);
+              setProgress(((i + 1) / totalFiles) * 100);
+          }
+          setStatusText('Conversion complete! Downloading files...');
+          downloadAllFiles(result.convertedFiles);
+          toast({
+              title: "Conversion Successful",
+              description: `${totalFiles} notes and ${assetFiles.length} assets have been downloaded.`,
+          });
         }
         
         if (preview && result.convertedFiles.length > 0) {
@@ -184,13 +203,24 @@ export function FileProcessingArea() {
       }
     } catch (error) {
       console.error("Conversion failed:", error);
+      setStatusText('Conversion failed.');
+      setProgress(0);
       toast({
         variant: "destructive",
         title: "Conversion Failed",
         description: error instanceof Error ? error.message : "An unknown error occurred.",
       });
     } finally {
-      setIsLoading(false);
+      if (!preview) {
+        // Keep progress bar at 100 for a moment before resetting
+        setTimeout(() => {
+          setIsLoading(false);
+          setStatusText('');
+        }, 2000);
+      } else {
+        setIsLoading(false);
+        setStatusText('');
+      }
     }
   };
   
@@ -223,6 +253,11 @@ export function FileProcessingArea() {
   }
 
   useEffect(() => {
+    // This effect should only run on the client
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     const getFilenamePreview = () => {
       const parts: string[] = [];
       const now = new Date();
@@ -333,7 +368,7 @@ export function FileProcessingArea() {
       <Accordion type="multiple" defaultValue={['item-1', 'item-2', 'item-3']} className="w-full space-y-4">
         {/* Import Section */}
         <AccordionItem value="item-1" className="border rounded-lg bg-card overflow-hidden">
-          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-primary/10 hover:no-underline">
+          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-primary/10 hover:no-underline [&[data-state=open]>svg]:-rotate-180">
             <div className="flex items-center gap-2">
               <Upload className="h-5 w-5 text-primary" />
               <span>Import</span>
@@ -361,7 +396,7 @@ export function FileProcessingArea() {
 
         {/* Process Section */}
         <AccordionItem value="item-2" className="border rounded-lg bg-card overflow-hidden">
-          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-accent/10 hover:no-underline">
+          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-accent/10 hover:no-underline [&[data-state=open]>svg]:-rotate-180">
              <div className="flex items-center gap-2">
                 <Cog className="h-5 w-5 text-accent" />
                 <span>Process</span>
@@ -526,7 +561,7 @@ export function FileProcessingArea() {
 
                     <div className="bg-secondary p-3 rounded-md text-sm text-muted-foreground flex items-center gap-2">
                         <Eye className="h-4 w-4 text-primary shrink-0"/>
-                        <span className="truncate">{filenamePreview}</span>
+                        {filenamePreview ? <span className="truncate">{filenamePreview}</span> : <span className="text-muted-foreground/80">Preview will appear here...</span>}
                     </div>
 
                 </CardContent>
@@ -567,7 +602,7 @@ export function FileProcessingArea() {
 
         {/* Finish Section */}
         <AccordionItem value="item-3" className="border rounded-lg bg-card overflow-hidden">
-          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-purple-500/10 hover:no-underline">
+          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-purple-500/10 hover:no-underline [&[data-state=open]>svg]:-rotate-180">
              <div className="flex items-center gap-2">
                 <FileText className="h-5 w-5 text-purple-400" />
                 <span>Finish</span>
@@ -625,16 +660,20 @@ export function FileProcessingArea() {
                     {isLoading ? 'Processing...' : 'Convert & Download All'}
                 </Button>
             </div>
-             {allFiles.length > 0 && (
+             {isLoading && (
+              <div className="mt-6 space-y-2 text-center">
+                  <Progress value={progress} className="w-full" />
+                  <p className="text-sm text-muted-foreground">{statusText} {progress > 0 && `${Math.round(progress)}%`}</p>
+              </div>
+            )}
+            {allFiles.length > 0 && !isLoading && (
                 <div className="text-sm text-muted-foreground mt-4 text-center">
-                    <p>This will download {convertedFiles.length > 0 ? convertedFiles.length : htmlFiles.length} Markdown files and {assetFiles.length} other assets.</p>
+                    <p>This will download {htmlFiles.length} Markdown files and {assetFiles.length} other assets.</p>
                 </div>
-              )}
+            )}
           </AccordionContent>
         </AccordionItem>
       </Accordion>
     </div>
   );
 }
-
-    
