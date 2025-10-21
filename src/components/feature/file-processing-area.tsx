@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useRef, type ChangeEvent, useEffect } from 'react';
@@ -233,7 +232,11 @@ export function FileProcessingArea() {
   
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
-        const selectedFiles = Array.from(event.target.files);
+        const ignoredFiles = ['.DS_Store', 'Thumbs.db'];
+        const selectedFiles = Array.from(event.target.files).filter(
+            file => !ignoredFiles.includes(file.name)
+        );
+        
         setAllFiles(selectedFiles);
         const htmls = selectedFiles.filter(file => file.type === 'text/html');
         setHtmlFiles(htmls);
@@ -854,3 +857,5 @@ export function FileProcessingArea() {
     </div>
   );
 }
+
+    
