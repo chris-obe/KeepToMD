@@ -329,7 +329,7 @@ export function FileProcessingArea() {
       <Accordion type="multiple" defaultValue={['item-1', 'item-2', 'item-3']} className="w-full space-y-4">
         {/* Import Section */}
         <AccordionItem value="item-1" className="border rounded-lg bg-card overflow-hidden">
-          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-primary/10">
+          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-primary/10 hover:no-underline">
             <div className="flex items-center gap-2">
               <Upload className="h-5 w-5 text-primary" />
               <span>Import</span>
@@ -357,7 +357,7 @@ export function FileProcessingArea() {
 
         {/* Process Section */}
         <AccordionItem value="item-2" className="border rounded-lg bg-card overflow-hidden">
-          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-accent/10">
+          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-accent/10 hover:no-underline">
              <div className="flex items-center gap-2">
                 <Cog className="h-5 w-5 text-accent" />
                 <span>Process</span>
@@ -395,7 +395,7 @@ export function FileProcessingArea() {
                            <span className="w-8 text-center text-sm">{namingOptions.bodyLength}</span>
                            <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setNamingOptions(p => ({ ...p, bodyLength: p.bodyLength + 1 }))}><Plus className="h-4 w-4"/></Button>
                         </div>
-                        <RadioGroup value={namingOptions.bodyUnit} onValueChange={handleBodyUnitChange} className="flex flex-col space-y-1">
+                        <RadioGroup value={namingOptions.bodyUnit} onValueChange={handleBodyUnitChange} className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
                             <div className="flex items-center space-x-2">
                                 <RadioGroupItem value="characters" id="characters" />
                                 <Label htmlFor="characters">characters</Label>
@@ -430,7 +430,7 @@ export function FileProcessingArea() {
                         {namingOptions.useDate && (
                             <div className="space-y-2">
                                 <Label className="font-semibold">Date format</Label>
-                                <RadioGroup value={namingOptions.dateFormat} onValueChange={(value) => setNamingOptions(p => ({...p, dateFormat: value}))} className="mt-2 space-y-1">
+                                <RadioGroup value={namingOptions.dateFormat} onValueChange={(value) => setNamingOptions(p => ({...p, dateFormat: value}))} className="grid grid-cols-2 gap-2 mt-2">
                                     <div className="flex items-center space-x-2">
                                         <RadioGroupItem value="yyyy-MM-dd" id="df-1" />
                                         <Label htmlFor="df-1">2024-07-29</Label>
@@ -472,7 +472,7 @@ export function FileProcessingArea() {
                                     <RadioGroupItem value="prepend" id="prepend" />
                                     <Label htmlFor="prepend">Prepend</Label>
                                 </div>
-                                <div className="flex items-center space-x-2">
+                                <div className="flex items-center space-x-2 ml-4">
                                     <RadioGroupItem value="append" id="append" />
                                     <Label htmlFor="append">Append</Label>
                                 </div>
@@ -563,14 +563,14 @@ export function FileProcessingArea() {
 
         {/* Finish Section */}
         <AccordionItem value="item-3" className="border rounded-lg bg-card overflow-hidden">
-          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-purple-500/10">
+          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-purple-500/10 hover:no-underline">
              <div className="flex items-center gap-2">
                 <FileText className="h-5 w-5 text-purple-400" />
                 <span>Finish</span>
             </div>
           </AccordionTrigger>
           <AccordionContent className="px-6 pt-4 pb-6">
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
                  <Dialog>
                     <DialogTrigger asChild>
                         <Button id="preview-dialog-trigger" size="lg" className="w-full sm:w-auto" onClick={handlePreviewClick} disabled={isLoading || htmlFiles.length === 0}>
@@ -622,7 +622,7 @@ export function FileProcessingArea() {
                 </Button>
             </div>
              {allFiles.length > 0 && (
-                <div className="text-sm text-muted-foreground mt-4">
+                <div className="text-sm text-muted-foreground mt-4 text-center">
                     <p>This will download {convertedFiles.length > 0 ? convertedFiles.length : htmlFiles.length} Markdown files and {assetFiles.length} other assets.</p>
                 </div>
               )}
