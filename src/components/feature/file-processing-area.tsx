@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useRef, type ChangeEvent } from 'react';
+import { useState, useRef, type ChangeEvent, useEffect } from 'react';
 import {
   Upload,
   Folder,
@@ -11,12 +11,8 @@ import {
   Eye,
   Settings,
   Info,
-  ChevronDown,
-  ChevronRight,
-  Plus,
   Minus,
-  Save,
-  CheckCircle,
+  Plus,
   Download,
   Loader2
 } from 'lucide-react';
@@ -37,7 +33,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
@@ -52,6 +47,7 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { convertToMarkdown } from '@/ai/flows/convert-to-markdown-flow';
 import type { ConvertToMarkdownInput, ConvertToMarkdownOutput, FormattingOptions, NamingOptions } from '@/ai/schemas';
+import * as cheerio from 'cheerio';
 
 const InfoTooltip = ({ children }: { children: React.ReactNode }) => (
   <TooltipProvider>
@@ -69,7 +65,11 @@ const InfoTooltip = ({ children }: { children: React.ReactNode }) => (
 );
 
 export function FileProcessingArea() {
-  const [files, setFiles] = useState<File[]>([]);
+  const [allFiles, setAllFiles] = useState<File[]>([]);
+  const [htmlFiles, setHtmlFiles] = useState<File[]>([]);
+  const [assetFiles, setAssetFiles] = useState<File[]>([]);
+  const [firstNoteTitle, setFirstNoteTitle] = useState<string>('My Note Title');
+
   const [namingOptions, setNamingOptions] = useState<NamingOptions>({
     useTitle: true,
     useBody: true,
@@ -93,15 +93,37 @@ export function FileProcessingArea() {
   
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
-      setFiles(Array.from(event.target.files).filter(file => file.type === 'text/html'));
+        const selectedFiles = Array.from(event.target.files);
+        setAllFiles(selectedFiles);
+        setHtmlFiles(selectedFiles.filter(file => file.type === 'text/html'));
+        setAssetFiles(selectedFiles.filter(file => file.type !== 'text/html'));
     }
   };
 
+  useEffect(() => {
+    if (htmlFiles.length > 0) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const content = e.target?.result as string;
+            const $ = cheerio.load(content);
+            const title = $('.title').text().trim();
+            if (title) {
+                setFirstNoteTitle(title);
+            } else {
+                setFirstNoteTitle('Untitled Note');
+            }
+        };
+        reader.readAsText(htmlFiles[0]);
+    } else {
+        setFirstNoteTitle('My Note Title');
+    }
+  }, [htmlFiles]);
+
   const handleRunConversion = async (preview = false) => {
-    if (files.length === 0) {
+    if (htmlFiles.length === 0) {
       toast({
         variant: "destructive",
-        title: "No files selected",
+        title: "No HTML files selected",
         description: "Please select your Google Keep HTML files first.",
       });
       return;
@@ -114,7 +136,7 @@ export function FileProcessingArea() {
 
     try {
       const fileContents = await Promise.all(
-        files.map(file =>
+        htmlFiles.map(file =>
           new Promise<{ path: string; content: string }>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (e) => resolve({ path: file.name, content: e.target?.result as string });
@@ -134,15 +156,23 @@ export function FileProcessingArea() {
 
       if (result && result.convertedFiles) {
         setConvertedFiles(result.convertedFiles);
-        toast({
-          title: "Conversion Successful",
-          description: `${result.convertedFiles.length} files have been converted.`,
-        });
+        if (!preview) {
+            toast({
+                title: "Conversion Successful",
+                description: `${result.convertedFiles.length} notes and ${assetFiles.length} assets are ready for download.`,
+            });
+            downloadAllFiles(result.convertedFiles);
+        } else {
+             toast({
+                title: "Preview Generated",
+                description: `Showing preview for the first of ${result.convertedFiles.length} files.`,
+            });
+        }
+        
         if (preview && result.convertedFiles.length > 0) {
             setPreviewFile(result.convertedFiles[0]);
-            document.getElementById('preview-dialog-trigger')?.click();
-        } else if (!preview) {
-            downloadAllFiles(result.convertedFiles);
+            // Use a timeout to ensure the dialog trigger is available
+            setTimeout(() => document.getElementById('preview-dialog-trigger')?.click(), 0);
         }
       } else {
         throw new Error("Conversion resulted in an unexpected format.");
@@ -159,7 +189,7 @@ export function FileProcessingArea() {
     }
   };
   
-  const downloadFile = (file: typeof convertedFiles[0]) => {
+  const downloadFile = (file: { newPath: string, content: BlobPart }) => {
     const blob = new Blob([file.content], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -172,7 +202,19 @@ export function FileProcessingArea() {
   };
   
   const downloadAllFiles = (filesToDownload = convertedFiles) => {
-    filesToDownload.forEach(file => downloadFile(file));
+    filesToDownload.forEach(file => downloadFile({newPath: file.newPath, content: file.content}));
+    
+    // Download asset files
+    assetFiles.forEach(file => {
+        const url = URL.createObjectURL(file);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
   }
 
 
@@ -186,7 +228,7 @@ export function FileProcessingArea() {
         parts.push(dateTimePart);
     }
 
-    let titlePart = 'My Note Title';
+    let titlePart = firstNoteTitle;
     if (!namingOptions.useTitle && namingOptions.useBody) { // Simplified for preview
         const bodyContent = "This is the beginning of the note content and it can be quite long.";
         let bodySnippet = "";
@@ -201,13 +243,13 @@ export function FileProcessingArea() {
                 bodySnippet = bodyContent.split('\n').slice(0, namingOptions.bodyLength).join(' ');
                 break;
         }
-        titlePart = bodySnippet;
+        titlePart = bodySnippet || "Untitled";
     } else if (namingOptions.useTitle) {
       // Show title
     } else if (namingOptions.useBody) {
-      titlePart = `My Note Title (or first ${namingOptions.bodyLength} ${namingOptions.bodyUnit} of body)`;
+      titlePart = `${firstNoteTitle} (or first ${namingOptions.bodyLength} ${namingOptions.bodyUnit} of body)`;
     } else {
-        titlePart = "";
+        titlePart = "Untitled";
     }
     
     if (titlePart) parts.push(titlePart);
@@ -238,23 +280,22 @@ export function FileProcessingArea() {
 
   // A simple function to convert markdown-style image links to HTML img tags
   const renderMarkdownContent = (content: string) => {
-    // Convert Obsidian-style wikilinks for images to standard markdown
-    let renderedContent = content.replace(/!\[\[(.*?)\]\]/g, (match, p1) => {
-      // For the preview, we need a valid src. Since we don't have the images,
-      // we'll use a placeholder. This part would need actual image handling
-      // if the source images were available to the component.
-      // For now, let's assume attachments are handled separately or we just show the name.
-      return `\n**Attachment:** ${p1}\n`;
-    });
-    
     // This is a very basic renderer. For a full-featured preview,
     // a library like 'react-markdown' would be ideal.
-    return renderedContent.split('\n').map((line, i) => {
+    return content.split('\n').map((line, i) => {
         if (line.startsWith('# ')) return <h1 key={i} className="text-3xl font-bold mt-4 mb-2">{line.substring(2)}</h1>;
         if (line.startsWith('## ')) return <h2 key={i} className="text-2xl font-bold mt-3 mb-1.5">{line.substring(3)}</h2>;
         if (line.startsWith('### ')) return <h3 key={i} className="text-xl font-bold mt-2 mb-1">{line.substring(4)}</h3>;
         if (line.startsWith('**Tags:**')) return <p key={i} className="my-2">{line}</p>;
         if (line.startsWith('**Created:**')) return <p key={i} className="text-sm text-muted-foreground mb-4">{line}</p>;
+        if (line.match(/!\[\[(.*?)\]\]/)) {
+          const imageName = line.match(/!\[\[(.*?)\]\]/)?.[1];
+          const imageFile = assetFiles.find(f => f.name === imageName);
+          if (imageFile) {
+            return <img key={i} src={URL.createObjectURL(imageFile)} alt={imageName} className="max-w-full rounded-lg my-4"/>
+          }
+          return <p key={i} className="my-2 text-muted-foreground italic">![[Image: {imageName}]] (preview unavailable)</p>;
+        }
         if (line.trim() === '') return <br key={i} />;
         return <p key={i}>{line}</p>;
     });
@@ -268,7 +309,7 @@ export function FileProcessingArea() {
         onChange={handleFileChange}
         className="hidden"
         multiple
-        accept=".html"
+        accept=".html,.jpg,.jpeg,.png,.gif,.mp3,.wav,.ogg,.m4a"
         webkitdirectory=""
       />
       <Accordion type="multiple" defaultValue={['item-1', 'item-2', 'item-3']} className="w-full space-y-4">
@@ -288,8 +329,14 @@ export function FileProcessingArea() {
                 onClick={() => fileInputRef.current?.click()}
                 >
                 <Folder className="mr-2 h-5 w-5" />
-                {files.length > 0 ? `${files.length} file(s) selected` : 'Source Folder / Files'}
+                {allFiles.length > 0 ? `${allFiles.length} file(s) selected` : 'Select Google Takeout Folder'}
               </Button>
+              {allFiles.length > 0 && (
+                <div className="text-sm text-muted-foreground">
+                    <p>{htmlFiles.length} HTML notes found.</p>
+                    <p>{assetFiles.length} other assets (images, audio, etc.) found.</p>
+                </div>
+              )}
             </div>
           </AccordionContent>
         </AccordionItem>
@@ -306,42 +353,29 @@ export function FileProcessingArea() {
             <Card className="bg-background/50">
                 <CardHeader>
                     <CardTitle className="flex items-center text-base">
-                        File (Re)Naming
+                        File Naming Convention
                         <div className="flex-grow" />
                         <InfoTooltip>Configure how your output files will be named.</InfoTooltip>
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 items-center">
-                         <div className="flex items-center space-x-2">
-                            <Checkbox id="title" checked={namingOptions.useTitle} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useTitle: !!checked }))} />
-                            <Label htmlFor="title">From Title</Label>
-                        </div>
+                    <div className="space-y-4">
                         <div className="flex items-center space-x-2">
+                            <Checkbox id="title" checked={namingOptions.useTitle} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useTitle: !!checked }))} />
+                            <Label htmlFor="title">Use note title</Label>
+                        </div>
+                         <div className="flex items-center space-x-2">
                             <Checkbox id="body" checked={namingOptions.useBody} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useBody: !!checked }))} />
                             <Label htmlFor="body" className="flex items-center">
-                              From Body
+                              Use note body if no title
                               <InfoTooltip>Use the first part of the body as a fallback if the note has no title.</InfoTooltip>
                             </Label>
                         </div>
-                        <div/>
-                        <div className="flex items-center space-x-2">
-                            <Checkbox id="date" checked={namingOptions.useDate} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useDate: !!checked }))} />
-                            <Label htmlFor="date">Date</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                            <Checkbox id="time" checked={namingOptions.useTime} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useTime: !!checked }))}/>
-                            <Label htmlFor="time">Time</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                            <Checkbox id="serial" checked={namingOptions.useSerial} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useSerial: !!checked }))} />
-                            <Label htmlFor="serial">Serial</Label>
-                        </div>
                     </div>
-                    
+
                     {namingOptions.useBody && (
-                    <div className="space-y-2 pt-4 border-t border-border">
-                        <Label className="font-semibold">Body for title options</Label>
+                    <div className="space-y-2 pt-4 border-t border-border pl-6">
+                        <Label className="font-semibold">Title from body options</Label>
                         <div className="flex items-center space-x-2">
                            <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setNamingOptions(p => ({ ...p, bodyLength: Math.max(1, p.bodyLength - 1) }))}><Minus className="h-4 w-4"/></Button>
                            <span className="w-8 text-center text-sm">{namingOptions.bodyLength}</span>
@@ -359,11 +393,23 @@ export function FileProcessingArea() {
                         </div>
                     </div>
                     )}
+                    
+                    <Separator />
 
+                     <div className="space-y-4">
+                        <div className="flex items-center space-x-2">
+                            <Checkbox id="date" checked={namingOptions.useDate} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useDate: !!checked }))} />
+                            <Label htmlFor="date">Add date</Label>
+                        </div>
+                         <div className="flex items-center space-x-2">
+                            <Checkbox id="time" checked={namingOptions.useTime} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useTime: !!checked }))}/>
+                            <Label htmlFor="time">Add time</Label>
+                        </div>
+                    </div>
 
                     {namingOptions.useDate && (
-                    <div className="space-y-2 pt-4 border-t border-border">
-                        <Label className="font-semibold">Date <span className="text-muted-foreground font-normal">sorting is chronological</span></Label>
+                    <div className="space-y-2 pt-4 border-t border-border pl-6">
+                        <Label className="font-semibold">Date position</Label>
                         <RadioGroup value={namingOptions.datePosition} onValueChange={(value: 'prepend' | 'append') => setNamingOptions(prev => ({ ...prev, datePosition: value }))} className="flex mt-2">
                             <div className="flex items-center space-x-2">
                                 <RadioGroupItem value="prepend" id="prepend" />
@@ -377,29 +423,40 @@ export function FileProcessingArea() {
                     </div>
                     )}
 
+                    <Separator />
+
+                    <div className="space-y-4">
+                        <div className="flex items-center space-x-2">
+                            <Checkbox id="serial" checked={namingOptions.useSerial} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useSerial: !!checked }))} />
+                            <Label htmlFor="serial">Add serial number</Label>
+                        </div>
+                    </div>
+
                     {namingOptions.useSerial && (
-                    <div className="space-y-2 pt-4 border-t border-border">
-                        <Label className="font-semibold flex items-center">Serial start with <InfoTooltip>Choose the padding for your serial numbers.</InfoTooltip></Label>
+                    <div className="space-y-2 pt-4 border-t border-border pl-6">
+                        <Label className="font-semibold flex items-center">Serial number padding <InfoTooltip>Choose the padding for your serial numbers. Sorting by date is recommended for predictable numbering.</InfoTooltip></Label>
                         <RadioGroup value={namingOptions.serialPadding} onValueChange={(value) => setNamingOptions(prev => ({ ...prev, serialPadding: value as '1' | '01' | '001' | '0001' }))} className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
                              <div className="flex items-center space-x-2">
                                 <RadioGroupItem value="1" id="s1" />
-                                <Label htmlFor="s1">1</Label>
+                                <Label htmlFor="s1">1, 2, 3</Label>
                             </div>
                             <div className="flex items-center space-x-2">
                                 <RadioGroupItem value="01" id="s01" />
-                                <Label htmlFor="s01">01</Label>
+                                <Label htmlFor="s01">01, 02, 03</Label>
                             </div>
                              <div className="flex items-center space-x-2">
                                 <RadioGroupItem value="001" id="s001" />
-                                <Label htmlFor="s001">001</Label>
+                                <Label htmlFor="s001">001, 002, 003</Label>
                             </div>
                              <div className="flex items-center space-x-2">
                                 <RadioGroupItem value="0001" id="s0001" />
-                                <Label htmlFor="s0001">0001</Label>
+                                <Label htmlFor="s0001">0001, 0002, 0003</Label>
                             </div>
                         </RadioGroup>
                     </div>
                     )}
+
+                    <Separator />
 
                     <div className="bg-secondary p-3 rounded-md text-sm text-muted-foreground flex items-center gap-2">
                         <Eye className="h-4 w-4 text-primary shrink-0"/>
@@ -428,11 +485,11 @@ export function FileProcessingArea() {
                             </div>
                             <div className="flex items-center space-x-2">
                                 <RadioGroupItem value="hash" id="hash" />
-                                <Label htmlFor="hash">#Hash</Label>
+                                <Label htmlFor="hash">#Hashtags</Label>
                             </div>
                              <div className="flex items-center space-x-2">
                                 <RadioGroupItem value="atlinks" id="atlinks" />
-                                <Label htmlFor="atlinks">@Links</Label>
+                                <Label htmlFor="atlinks">@Mentions</Label>
                             </div>
                         </RadioGroup>
                     </div>
@@ -454,9 +511,9 @@ export function FileProcessingArea() {
             <div className="flex flex-col sm:flex-row gap-4">
                  <Dialog>
                     <DialogTrigger asChild>
-                        <Button id="preview-dialog-trigger" size="lg" className="w-full" onClick={handlePreviewClick} disabled={isLoading || files.length === 0}>
+                        <Button id="preview-dialog-trigger" size="lg" className="w-full" onClick={handlePreviewClick} disabled={isLoading || htmlFiles.length === 0}>
                             {isLoading && convertedFiles.length === 0 ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Eye className="mr-2 h-5 w-5" />}
-                            {isLoading && convertedFiles.length === 0 ? 'Processing...' : 'Preview'}
+                            {isLoading && convertedFiles.length === 0 ? 'Processing...' : 'Preview First Note'}
                         </Button>
                     </DialogTrigger>
                     <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
@@ -491,17 +548,22 @@ export function FileProcessingArea() {
                             </ScrollArea>
                         </div>
                         <div className="flex justify-end gap-2 pt-4">
-                            {previewFile && <Button variant="outline" onClick={() => downloadFile(previewFile)}>Download Selected</Button>}
-                            <Button onClick={() => downloadAllFiles()}>Download All</Button>
+                            {previewFile && <Button variant="outline" onClick={() => downloadFile({newPath: previewFile.newPath, content: previewFile.content})}>Download Selected</Button>}
+                            <Button onClick={() => downloadAllFiles(convertedFiles)}>Download All Previewed</Button>
                         </div>
                     </DialogContent>
                  </Dialog>
 
-                <Button size="lg" variant="secondary" className="w-full" onClick={() => handleRunConversion(false)} disabled={isLoading || files.length === 0}>
-                    {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Settings className="mr-2 h-5 w-5" />}
-                    {isLoading ? 'Processing...' : 'Run Conversion & Download'}
+                <Button size="lg" variant="secondary" className="w-full" onClick={() => handleRunConversion(false)} disabled={isLoading || htmlFiles.length === 0}>
+                    {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Download className="mr-2 h-5 w-5" />}
+                    {isLoading ? 'Processing...' : 'Convert & Download All'}
                 </Button>
             </div>
+             {allFiles.length > 0 && (
+                <div className="text-sm text-muted-foreground mt-4">
+                    <p>This will download {convertedFiles.length > 0 ? convertedFiles.length : htmlFiles.length} Markdown files and {assetFiles.length} other assets.</p>
+                </div>
+              )}
           </AccordionContent>
         </AccordionItem>
       </Accordion>
