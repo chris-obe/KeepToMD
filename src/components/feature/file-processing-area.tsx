@@ -329,7 +329,7 @@ export function FileProcessingArea() {
       <Accordion type="multiple" defaultValue={['item-1', 'item-2', 'item-3']} className="w-full space-y-4">
         {/* Import Section */}
         <AccordionItem value="item-1" className="border rounded-lg bg-card overflow-hidden">
-          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-primary/10 hover:no-underline">
+          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-primary/10">
             <div className="flex items-center gap-2">
               <Upload className="h-5 w-5 text-primary" />
               <span>Import</span>
@@ -357,7 +357,7 @@ export function FileProcessingArea() {
 
         {/* Process Section */}
         <AccordionItem value="item-2" className="border rounded-lg bg-card overflow-hidden">
-          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-accent/10 hover:no-underline">
+          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-accent/10">
              <div className="flex items-center gap-2">
                 <Cog className="h-5 w-5 text-accent" />
                 <span>Process</span>
@@ -563,17 +563,17 @@ export function FileProcessingArea() {
 
         {/* Finish Section */}
         <AccordionItem value="item-3" className="border rounded-lg bg-card overflow-hidden">
-          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-purple-500/10 hover:no-underline">
+          <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-purple-500/10">
              <div className="flex items-center gap-2">
                 <FileText className="h-5 w-5 text-purple-400" />
                 <span>Finish</span>
             </div>
           </AccordionTrigger>
           <AccordionContent className="px-6 pt-4 pb-6">
-            <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
                  <Dialog>
                     <DialogTrigger asChild>
-                        <Button id="preview-dialog-trigger" size="lg" className="w-full" onClick={handlePreviewClick} disabled={isLoading || htmlFiles.length === 0}>
+                        <Button id="preview-dialog-trigger" size="lg" className="w-full sm:w-auto" onClick={handlePreviewClick} disabled={isLoading || htmlFiles.length === 0}>
                             {isLoading && convertedFiles.length === 0 ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Eye className="mr-2 h-5 w-5" />}
                             {isLoading && convertedFiles.length === 0 ? 'Processing...' : 'Preview First Note'}
                         </Button>
@@ -616,7 +616,7 @@ export function FileProcessingArea() {
                     </DialogContent>
                  </Dialog>
 
-                <Button size="lg" variant="secondary" className="w-full" onClick={() => handleRunConversion(false)} disabled={isLoading || htmlFiles.length === 0}>
+                <Button size="lg" variant="secondary" className="w-full sm:w-auto" onClick={() => handleRunConversion(false)} disabled={isLoading || htmlFiles.length === 0}>
                     {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Download className="mr-2 h-5 w-5" />}
                     {isLoading ? 'Processing...' : 'Convert & Download All'}
                 </Button>
@@ -632,3 +632,5 @@ export function FileProcessingArea() {
     </div>
   );
 }
+
+    
