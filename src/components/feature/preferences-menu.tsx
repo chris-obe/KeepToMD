@@ -64,7 +64,6 @@ export function PreferencesMenu() {
         label = `Toggle ${theme === 'dark' ? 'Light' : 'Dark'} Mode`;
     }
 
-
     const button = (
       <Button
         variant="secondary"
@@ -76,12 +75,14 @@ export function PreferencesMenu() {
       </Button>
     );
 
-    let content = button;
+    let content;
 
     if (item.action === 'history') {
       content = <HistoryDisplay>{button}</HistoryDisplay>;
     } else if (item.action === 'namingPresets' || item.action === 'markdownPresets') {
       content = <PresetManager type={item.type}>{button}</PresetManager>;
+    } else {
+      content = button;
     }
 
     return (
@@ -99,7 +100,6 @@ export function PreferencesMenu() {
   return (
     <div
       className="fixed bottom-6 right-6 z-50"
-      onMouseEnter={() => setIsOpen(true)}
       onMouseLeave={() => setIsOpen(false)}
     >
       <div className="relative flex flex-col items-center gap-3">
@@ -115,29 +115,30 @@ export function PreferencesMenu() {
         </div>
 
         {/* Main Trigger Button */}
-        <TooltipProvider delayDuration={0}>
-          <Tooltip open={isOpen ? false : undefined}>
-            <TooltipTrigger asChild>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-14 w-14 rounded-full shadow-lg"
-              >
-                <Settings
-                  className={`h-6 w-6 transition-transform duration-300 ${
-                    isOpen ? 'rotate-90' : ''
-                  }`}
-                />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="left" align="center">
-              <p>Preferences</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <div onMouseEnter={() => setIsOpen(true)}>
+            <TooltipProvider delayDuration={0}>
+            <Tooltip open={isOpen ? false : undefined}>
+                <TooltipTrigger asChild>
+                <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-14 w-14 rounded-full shadow-lg"
+                >
+                    <Settings
+                    className={`h-6 w-6 transition-transform duration-300 ${
+                        isOpen ? 'rotate-90' : ''
+                    }`}
+                    />
+                </Button>
+                </TooltipTrigger>
+                <TooltipContent side="left" align="center">
+                <p>Preferences</p>
+                </TooltipContent>
+            </Tooltip>
+            </TooltipProvider>
+        </div>
       </div>
     </div>
   );
 }
-
     
