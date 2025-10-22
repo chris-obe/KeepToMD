@@ -19,6 +19,8 @@ import {
   ChevronRight,
   FileArchive,
   Smile,
+  Save,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -55,6 +57,7 @@ import * as cheerio from 'cheerio';
 import { format } from 'date-fns';
 import TurndownService from 'turndown';
 import JSZip from 'jszip';
+import { Input } from '../ui/input';
 
 
 const turndownService = new TurndownService();
@@ -202,6 +205,13 @@ function createFilename(data: ReturnType<typeof parseKeepHtml>, options: NamingO
 
 // --- End of Moved Conversion Logic ---
 
+type Preset = {
+  name: string;
+  options: {
+    naming: NamingOptions;
+    formatting: FormattingOptions;
+  };
+};
 
 const InfoTooltip = ({ children }: { children: React.ReactNode }) => (
   <TooltipProvider>
@@ -225,7 +235,7 @@ export function FileProcessingArea() {
   const [firstNoteTitle, setFirstNoteTitle] = useState<string>('My Note Title');
   const [filenamePreview, setFilenamePreview] = useState<string>('');
 
-  const [namingOptions, setNamingOptions] = useState<NamingOptions>({
+  const initialNamingOptions: NamingOptions = {
     useTitle: true,
     useBody: true,
     bodyLength: 30,
@@ -240,10 +250,14 @@ export function FileProcessingArea() {
     useEmoji: false,
     selectedEmoji: '💡',
     emojiPosition: 'beforeDate',
-  });
-  const [formattingOptions, setFormattingOptions] = useState<FormattingOptions>({
+  };
+  
+  const initialFormattingOptions: FormattingOptions = {
     tagHandling: 'hash',
-  });
+  };
+
+  const [namingOptions, setNamingOptions] = useState<NamingOptions>(initialNamingOptions);
+  const [formattingOptions, setFormattingOptions] = useState<FormattingOptions>(initialFormattingOptions);
   const [convertedFiles, setConvertedFiles] = useState<ConvertToMarkdownOutput['convertedFiles']>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -251,9 +265,88 @@ export function FileProcessingArea() {
   const [queuedFiles, setQueuedFiles] = useState<string[]>([]);
   const [previewFile, setPreviewFile] = useState<typeof convertedFiles[0] | null>(null);
 
+  const [presets, setPresets] = useState<Preset[]>([]);
+  const [presetName, setPresetName] = useState('');
+  const [selectedPreset, setSelectedPreset] = useState('');
+
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // --- Preset Management ---
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedPresets = localStorage.getItem('keepSyncPresets');
+        if (savedPresets) {
+          setPresets(JSON.parse(savedPresets));
+        }
+      } catch (error) {
+        console.error("Failed to load presets from localStorage", error);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('keepSyncPresets', JSON.stringify(presets));
+      } catch (error) {
+        console.error("Failed to save presets to localStorage", error);
+      }
+    }
+  }, [presets]);
   
+  const handleSavePreset = () => {
+    if (!presetName) {
+      toast({ variant: 'destructive', title: 'Preset name cannot be empty.' });
+      return;
+    }
+    const newPreset: Preset = {
+      name: presetName,
+      options: { naming: namingOptions, formatting: formattingOptions }
+    };
+
+    const existingIndex = presets.findIndex(p => p.name === presetName);
+    if (existingIndex > -1) {
+      const updatedPresets = [...presets];
+      updatedPresets[existingIndex] = newPreset;
+      setPresets(updatedPresets);
+      toast({ title: 'Preset Updated', description: `Preset "${presetName}" has been updated.` });
+    } else {
+      setPresets([...presets, newPreset]);
+      toast({ title: 'Preset Saved', description: `Preset "${presetName}" has been saved.` });
+    }
+    setPresetName('');
+    setSelectedPreset(newPreset.name);
+  };
+
+  const handleSelectPreset = (name: string) => {
+    if (name === 'default') {
+      setNamingOptions(initialNamingOptions);
+      setFormattingOptions(initialFormattingOptions);
+      setSelectedPreset('');
+      return;
+    }
+    const preset = presets.find(p => p.name === name);
+    if (preset) {
+      setNamingOptions(preset.options.naming);
+      setFormattingOptions(preset.options.formatting);
+      setSelectedPreset(name);
+      toast({ title: 'Preset Loaded', description: `Settings for "${name}" have been applied.` });
+    }
+  };
+
+  const handleDeletePreset = () => {
+    if (!selectedPreset) {
+      toast({ variant: 'destructive', title: 'No preset selected to delete.' });
+      return;
+    }
+    setPresets(presets.filter(p => p.name !== selectedPreset));
+    handleSelectPreset('default'); // Revert to default settings
+    toast({ title: 'Preset Deleted', description: `Preset "${selectedPreset}" has been deleted.` });
+  };
+  // --- End Preset Management ---
+
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
         const ignoredFiles = ['.DS_Store', 'Thumbs.db'];
@@ -508,7 +601,7 @@ export function FileProcessingArea() {
       
       if (dateTimePart && namingOptions.datePosition === 'append') {
           if (namingOptions.useEmoji && namingOptions.emojiPosition === 'beforeDate') {
-            dateTimePart = `${emojiPart} ${dateTimePart}`;
+            dateTimePart = `${emojiPart} ${emojiPart}`;
           }
            if (namingOptions.useEmoji && namingOptions.emojiPosition === 'afterDate') {
             dateTimePart = `${dateTimePart} ${emojiPart}`;
@@ -623,7 +716,38 @@ export function FileProcessingArea() {
                 <span>Process</span>
             </div>
           </AccordionTrigger>
-          <AccordionContent className="px-6 pt-4 pb-6 space-y-4">
+          <AccordionContent className="px-6 pt-4 pb-6 space-y-6">
+            <div className="space-y-2">
+              <Label>Load Preset</Label>
+              <div className="flex gap-2">
+                <Select onValueChange={handleSelectPreset} value={selectedPreset}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a preset..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Default Settings</SelectItem>
+                    <Separator className="my-1" />
+                    {presets.map(p => (
+                      <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedPreset && selectedPreset !== 'default' && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="destructive" size="icon" onClick={handleDeletePreset}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Delete '{selectedPreset}' preset</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
+            </div>
             <Card className="bg-background/50">
                 <CardHeader>
                     <CardTitle className="flex items-center text-base">
@@ -869,6 +993,21 @@ export function FileProcessingArea() {
                     </div>
                 </CardContent>
             </Card>
+            <div className="space-y-2 pt-6 border-t">
+              <Label htmlFor="preset-name">Save Current Settings as Preset</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="preset-name"
+                  placeholder="My Awesome Preset"
+                  value={presetName}
+                  onChange={(e) => setPresetName(e.target.value)}
+                />
+                <Button onClick={handleSavePreset}>
+                  <Save className="mr-2 h-4 w-4" />
+                  Save Preset
+                </Button>
+              </div>
+            </div>
 
           </AccordionContent>
         </AccordionItem>
