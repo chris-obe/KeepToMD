@@ -884,7 +884,7 @@ export function FileProcessingArea() {
                         <div className="space-y-4 pt-4 border-t border-border pl-6">
                             <div className="space-y-2">
                                 <Label className="font-semibold">Emoji</Label>
-                                <RadioGroup value={namingOptions.selectedEmoji} onValueChange={(value) => setNamingOptions(p => ({...p, selectedEmoji: value}))} className="flex flex-wrap gap-x-4 gap-y-2">
+                                <RadioGroup value={namingOptions.selectedEmoji} onValueChange={(value) => setNamingOptions(p => ({...p, selectedEmoji: value}))} className="flex flex-wrap gap-4">
                                     <div className="flex items-center space-x-2">
                                         <RadioGroupItem value="🟡" id="e-1" />
                                         <Label htmlFor="e-1">🟡</Label>
@@ -904,7 +904,7 @@ export function FileProcessingArea() {
                                 <RadioGroup 
                                     value={namingOptions.emojiPosition} 
                                     onValueChange={(value: 'beforeDate' | 'afterDate' | 'afterTitle') => setNamingOptions(prev => ({ ...prev, emojiPosition: value }))} 
-                                    className="flex flex-wrap gap-x-4 gap-y-2"
+                                    className="flex flex-wrap gap-4"
                                 >
                                     <div className="flex items-center space-x-2">
                                         <RadioGroupItem value="beforeDate" id="ep-1" />
@@ -925,104 +925,107 @@ export function FileProcessingArea() {
                     
                     <Separator />
 
-                     <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
-                        <div className="flex items-center gap-2">
-                            <Checkbox id="date" checked={namingOptions.useDate} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useDate: !!checked, useSerial: checked ? prev.useSerial : false }))} />
-                            <Label htmlFor="date" className="flex items-center gap-1"><CalendarDays className="h-4 w-4" /> Add date</Label>
-                        </div>
-                         <div className="flex items-center gap-2">
-                            <Checkbox id="time" checked={namingOptions.useTime} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useTime: !!checked }))}/>
-                            <Label htmlFor="time" className="flex items-center gap-1"><Clock className="h-4 w-4" /> Add time</Label>
-                        </div>
-                    </div>
-                    
-                    {(namingOptions.useDate || namingOptions.useTime) && (
-                    <div className="space-y-4 pt-4 border-t border-border pl-6">
-                        {namingOptions.useDate && (
+                    <div className="space-y-4 pt-4">
+                      <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
+                          <div className="flex items-center gap-2">
+                              <Checkbox id="date" checked={namingOptions.useDate} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useDate: !!checked, useSerial: checked ? prev.useSerial : false }))} />
+                              <Label htmlFor="date" className="flex items-center gap-1"><CalendarDays className="h-4 w-4" /> Add date</Label>
+                          </div>
+                          <div className="flex items-center gap-2">
+                              <Checkbox id="time" checked={namingOptions.useTime} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useTime: !!checked }))}/>
+                              <Label htmlFor="time" className="flex items-center gap-1"><Clock className="h-4 w-4" /> Add time</Label>
+                          </div>
+                      </div>
+                      
+                      {(namingOptions.useDate || namingOptions.useTime) && (
+                      <div className="space-y-4 pt-4 border-t border-border pl-6">
+                          {namingOptions.useDate && (
+                              <div className="space-y-2">
+                                  <Label className="font-semibold">Date format</Label>
+                                  <RadioGroup value={namingOptions.dateFormat} onValueChange={(value) => setNamingOptions(p => ({...p, dateFormat: value}))} className="flex flex-wrap gap-4">
+                                      <div className="flex items-center space-x-2">
+                                          <RadioGroupItem value="yyyy-MM-dd" id="df-1" />
+                                          <Label htmlFor="df-1">2024-07-29</Label>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                          <RadioGroupItem value="dd-MM-yyyy" id="df-2" />
+                                          <Label htmlFor="df-2">29-07-2024</Label>                                    </div>
+                                      <div className="flex items-center space-x-2">
+                                          <RadioGroupItem value="MM-dd-yyyy" id="df-3" />
+                                          <Label htmlFor="df-3">07-29-2024</Label>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                          <RadioGroupItem value="yyyyMMdd" id="df-4" />
+                                          <Label htmlFor="df-4">20240729</Label>
+                                      </div>
+                                  </RadioGroup>
+                              </div>
+                          )}
+                          {namingOptions.useTime && (
                             <div className="space-y-2">
-                                <Label className="font-semibold">Date format</Label>
-                                <RadioGroup value={namingOptions.dateFormat} onValueChange={(value) => setNamingOptions(p => ({...p, dateFormat: value}))} className="flex flex-wrap gap-x-4 gap-y-2">
-                                    <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="yyyy-MM-dd" id="df-1" />
-                                        <Label htmlFor="df-1">2024-07-29</Label>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="dd-MM-yyyy" id="df-2" />
-                                        <Label htmlFor="df-2">29-07-2024</Label>                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="MM-dd-yyyy" id="df-3" />
-                                        <Label htmlFor="df-3">07-29-2024</Label>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="yyyyMMdd" id="df-4" />
-                                        <Label htmlFor="df-4">20240729</Label>
-                                    </div>
-                                </RadioGroup>
-                            </div>
-                        )}
-                        {namingOptions.useTime && (
-                           <div className="space-y-2">
-                                <Label className="font-semibold">Time format</Label>
-                                <Select value={namingOptions.timeFormat} onValueChange={(value) => setNamingOptions(p => ({...p, timeFormat: value}))}>
-                                   <SelectTrigger className="w-auto h-8 text-sm">
-                                       <SelectValue />
-                                   </SelectTrigger>
-                                   <SelectContent>
-                                       <SelectItem value="HH-mm-ss">14-30-55</SelectItem>
-                                       <SelectItem value="hh-mm-ss a">02-30-55 PM</SelectItem>
-                                       <SelectItem value="HHmmss">143055</SelectItem>
-                                   </SelectContent>
-                               </Select>
-                            </div>
-                        )}
-                        <div className="space-y-2">
-                            <Label className="font-semibold">Date position</Label>
-                            <RadioGroup value={namingOptions.datePosition} onValueChange={(value: 'prepend' | 'append') => setNamingOptions(prev => ({ ...prev, datePosition: value }))} className="flex flex-wrap gap-x-4 gap-y-2">
-                                <div className="flex items-center space-x-2">
-                                    <RadioGroupItem value="prepend" id="prepend" />
-                                    <Label htmlFor="prepend">Prepend</Label>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                    <RadioGroupItem value="append" id="append" />
-                                    <Label htmlFor="append">Append</Label>
-                                </div>
-                            </RadioGroup>
-                        </div>
-                        <Separator />
-                        <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                                <Checkbox id="serial" checked={namingOptions.useSerial} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useSerial: !!checked }))} />
-                                <Label htmlFor="serial" className="flex items-center">
-                                    Add serial number
-                                    <InfoTooltip>Serializes notes to prevent filename conflicts. Recommended if notes have the same creation date.</InfoTooltip>
-                                </Label>
-                            </div>
-                            {namingOptions.useSerial && (
-                                <div className="space-y-2 pl-6">
-                                    <Label className="font-semibold">Serial number padding</Label>
-                                    <RadioGroup value={namingOptions.serialPadding} onValueChange={(value) => setNamingOptions(prev => ({ ...prev, serialPadding: value as '1' | '01' | '001' | '0001' }))} className="flex flex-wrap gap-x-4 gap-y-2">
-                                        <div className="flex items-center space-x-2">
-                                            <RadioGroupItem value="1" id="s1" />
-                                            <Label htmlFor="s1">1, 2, 3</Label>
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                            <RadioGroupItem value="01" id="s01" />
-                                            <Label htmlFor="s01">01, 02, 03</Label>
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                            <RadioGroupItem value="001" id="s001" />
-                                            <Label htmlFor="s001">001, 002, 003</Label>
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                            <RadioGroupItem value="0001" id="s0001" />
-                                            <Label htmlFor="s0001">0001, 0002, 0003</Label>
-                                        </div>
-                                    </RadioGroup>
-                                </div>
-                            )}
-                        </div>
+                                  <Label className="font-semibold">Time format</Label>
+                                  <Select value={namingOptions.timeFormat} onValueChange={(value) => setNamingOptions(p => ({...p, timeFormat: value}))}>
+                                    <SelectTrigger className="w-auto h-8 text-sm">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="HH-mm-ss">14-30-55</SelectItem>
+                                        <SelectItem value="hh-mm-ss a">02-30-55 PM</SelectItem>
+                                        <SelectItem value="HHmmss">143055</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                              </div>
+                          )}
+                          <div className="space-y-2">
+                              <Label className="font-semibold">Date position</Label>
+                              <RadioGroup value={namingOptions.datePosition} onValueChange={(value: 'prepend' | 'append') => setNamingOptions(prev => ({ ...prev, datePosition: value }))} className="flex flex-wrap gap-4">
+                                  <div className="flex items-center space-x-2">
+                                      <RadioGroupItem value="prepend" id="prepend" />
+                                      <Label htmlFor="prepend">Prepend</Label>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                      <RadioGroupItem value="append" id="append" />
+                                      <Label htmlFor="append">Append</Label>
+                                  </div>
+                              </RadioGroup>
+                          </div>
+                      </div>
+                      )}
+                      
+                      <div className="space-y-2 pt-4 border-t">
+                          <div className="flex items-center gap-2">
+                              <Checkbox id="serial" checked={namingOptions.useSerial} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useSerial: !!checked }))} disabled={!namingOptions.useDate} />
+                              <Label htmlFor="serial" className={`flex items-center ${!namingOptions.useDate ? 'text-muted-foreground' : ''}`}>
+                                  Add serial number
+                                  <InfoTooltip>Serializes notes with matching dates to prevent filename conflicts. Requires 'Add date' to be enabled.</InfoTooltip>
+                              </Label>
+                          </div>
+                          {namingOptions.useSerial && namingOptions.useDate && (
+                              <div className="space-y-2 pl-6 pt-4 border-t">
+                                  <Label className="font-semibold">Serial number padding</Label>
+                                  <RadioGroup value={namingOptions.serialPadding} onValueChange={(value) => setNamingOptions(prev => ({ ...prev, serialPadding: value as '1' | '01' | '001' | '0001' }))} className="flex flex-wrap gap-4">
+                                      <div className="flex items-center space-x-2">
+                                          <RadioGroupItem value="1" id="s1" />
+                                          <Label htmlFor="s1">1, 2, 3</Label>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                          <RadioGroupItem value="01" id="s01" />
+                                          <Label htmlFor="s01">01, 02, 03</Label>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                          <RadioGroupItem value="001" id="s001" />
+                                          <Label htmlFor="s001">001, 002, 003</Label>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                          <RadioGroupItem value="0001" id="s0001" />
+                                          <Label htmlFor="s0001">0001, 0002, 0003</Label>
+                                      </div>
+                                  </RadioGroup>
+                              </div>
+                          )}
+                      </div>
                     </div>
-                    )}
+
 
                     <Separator />
 
@@ -1043,7 +1046,7 @@ export function FileProcessingArea() {
                         <InfoTooltip>Options for how content is formatted inside the markdown files.</InfoTooltip>
                     </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4 pt-6">
+                <CardContent className="space-y-4">
                     <div className="space-y-2">
                         <Label>Load Markdown Preset</Label>
                         <div className="flex gap-2">
@@ -1066,7 +1069,7 @@ export function FileProcessingArea() {
                     </div>
                      <div className="space-y-2">
                         <Label className="font-semibold flex items-center">Tag handling <span className="ml-2 text-sm font-normal text-muted-foreground">relevant for Obsidian Graphs</span><InfoTooltip>Choose how to represent Google Keep tags in Obsidian.</InfoTooltip></Label>
-                        <RadioGroup value={formattingOptions.tagHandling} onValueChange={(value) => setFormattingOptions(prev => ({...prev, tagHandling: value as 'links' | 'hash' | 'atlinks'}))} className="flex flex-wrap gap-x-4 gap-y-2 pt-2">
+                        <RadioGroup value={formattingOptions.tagHandling} onValueChange={(value) => setFormattingOptions(prev => ({...prev, tagHandling: value as 'links' | 'hash' | 'atlinks'}))} className="flex flex-wrap gap-4 pt-2">
                              <div className="flex items-center space-x-2">
                                 <RadioGroupItem value="links" id="links" />
                                 <Label htmlFor="links">Links (notes)</Label>
