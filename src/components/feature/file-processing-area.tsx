@@ -884,7 +884,7 @@ export function FileProcessingArea() {
                         <div className="space-y-4 pt-4 border-t border-border pl-6">
                             <div className="space-y-2">
                                 <Label className="font-semibold">Emoji</Label>
-                                <RadioGroup value={namingOptions.selectedEmoji} onValueChange={(value) => setNamingOptions(p => ({...p, selectedEmoji: value}))} className="flex flex-wrap gap-4">
+                                <RadioGroup value={namingOptions.selectedEmoji} onValueChange={(value) => setNamingOptions(p => ({...p, selectedEmoji: value}))} className="flex flex-wrap gap-x-4 gap-y-2">
                                     <div className="flex items-center space-x-2">
                                         <RadioGroupItem value="🟡" id="e-1" />
                                         <Label htmlFor="e-1">🟡</Label>
@@ -904,7 +904,7 @@ export function FileProcessingArea() {
                                 <RadioGroup 
                                     value={namingOptions.emojiPosition} 
                                     onValueChange={(value: 'beforeDate' | 'afterDate' | 'afterTitle') => setNamingOptions(prev => ({ ...prev, emojiPosition: value }))} 
-                                    className="flex flex-wrap gap-4"
+                                    className="flex flex-wrap gap-x-4 gap-y-2"
                                 >
                                     <div className="flex items-center space-x-2">
                                         <RadioGroupItem value="beforeDate" id="ep-1" />
@@ -942,7 +942,7 @@ export function FileProcessingArea() {
                           {namingOptions.useDate && (
                               <div className="space-y-2">
                                   <Label className="font-semibold">Date format</Label>
-                                  <RadioGroup value={namingOptions.dateFormat} onValueChange={(value) => setNamingOptions(p => ({...p, dateFormat: value}))} className="flex flex-wrap gap-4">
+                                  <RadioGroup value={namingOptions.dateFormat} onValueChange={(value) => setNamingOptions(p => ({...p, dateFormat: value}))} className="flex flex-wrap gap-x-4 gap-y-2">
                                       <div className="flex items-center space-x-2">
                                           <RadioGroupItem value="yyyy-MM-dd" id="df-1" />
                                           <Label htmlFor="df-1">2024-07-29</Label>
@@ -978,7 +978,7 @@ export function FileProcessingArea() {
                           )}
                           <div className="space-y-2">
                               <Label className="font-semibold">Date position</Label>
-                              <RadioGroup value={namingOptions.datePosition} onValueChange={(value: 'prepend' | 'append') => setNamingOptions(prev => ({ ...prev, datePosition: value }))} className="flex flex-wrap gap-4">
+                              <RadioGroup value={namingOptions.datePosition} onValueChange={(value: 'prepend' | 'append') => setNamingOptions(prev => ({ ...prev, datePosition: value }))} className="flex flex-wrap gap-x-4 gap-y-2">
                                   <div className="flex items-center space-x-2">
                                       <RadioGroupItem value="prepend" id="prepend" />
                                       <Label htmlFor="prepend">Prepend</Label>
@@ -1003,7 +1003,7 @@ export function FileProcessingArea() {
                           {namingOptions.useSerial && namingOptions.useDate && (
                               <div className="space-y-2 pl-6 pt-4 border-t">
                                   <Label className="font-semibold">Serial number padding</Label>
-                                  <RadioGroup value={namingOptions.serialPadding} onValueChange={(value) => setNamingOptions(prev => ({ ...prev, serialPadding: value as '1' | '01' | '001' | '0001' }))} className="flex flex-wrap gap-4">
+                                  <RadioGroup value={namingOptions.serialPadding} onValueChange={(value) => setNamingOptions(prev => ({ ...prev, serialPadding: value as '1' | '01' | '001' | '0001' }))} className="flex flex-wrap gap-x-4 gap-y-2">
                                       <div className="flex items-center space-x-2">
                                           <RadioGroupItem value="1" id="s1" />
                                           <Label htmlFor="s1">1, 2, 3</Label>
@@ -1046,7 +1046,7 @@ export function FileProcessingArea() {
                         <InfoTooltip>Options for how content is formatted inside the markdown files.</InfoTooltip>
                     </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 pt-4">
                     <div className="space-y-2">
                         <Label>Load Markdown Preset</Label>
                         <div className="flex gap-2">
