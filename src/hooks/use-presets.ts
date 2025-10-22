@@ -151,13 +151,15 @@ const reducer = (state: PresetsState, action: Action): PresetsState => {
 
 // On the server, we need to return a static, default snapshot.
 // The client will then hydrate and load the actual state from localStorage.
+const serverSnapshot: PresetsState = {
+    presets: [],
+    namingOptions: initialNamingOptions,
+    formattingOptions: initialFormattingOptions,
+    selectedPreset: '',
+};
+
 const getServerSnapshot = () => {
-    return {
-        presets: [],
-        namingOptions: initialNamingOptions,
-        formattingOptions: initialFormattingOptions,
-        selectedPreset: '',
-    };
+    return serverSnapshot;
 };
 
 export const usePresets = () => {
