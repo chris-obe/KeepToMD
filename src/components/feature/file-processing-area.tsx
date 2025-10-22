@@ -16,6 +16,7 @@ import {
   Loader2,
   ShieldCheck,
   ChevronRight,
+  FileArchive,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -51,6 +52,8 @@ import type { ConvertToMarkdownOutput, FormattingOptions, NamingOptions } from '
 import * as cheerio from 'cheerio';
 import { format } from 'date-fns';
 import TurndownService from 'turndown';
+import JSZip from 'jszip';
+
 
 const turndownService = new TurndownService();
 
@@ -251,6 +254,7 @@ export function FileProcessingArea() {
         const reader = new FileReader();
         reader.onload = (e) => {
             const content = e.target?.result as string;
+            if (!content) return;
             const $ = cheerio.load(content);
             const title = $('.title').text().trim();
             if (title) {
@@ -287,15 +291,16 @@ export function FileProcessingArea() {
   
       // If date sorting is enabled, we need to read all dates first.
       if (namingOptions.useDate) {
+        setStatusText('Sorting files by date...');
         const filesWithDates = await Promise.all(
-          filesToProcess.map(async file => {
-            const content = await file.text();
-            const data = parseKeepHtml(content);
-            return { file, date: data.creationTime };
-          })
-        );
-        filesWithDates.sort((a, b) => a.date.getTime() - b.date.getTime());
-        filesToProcess = filesWithDates.map(f => f.file);
+            filesToProcess.map(async file => {
+              const content = await file.text();
+              const data = parseKeepHtml(content);
+              return { file, date: data.creationTime };
+            })
+          );
+          filesWithDates.sort((a, b) => a.date.getTime() - b.date.getTime());
+          filesToProcess = filesWithDates.map(f => f.file);
       }
       
       const fileQueue = filesToProcess.map(f => f.name);
@@ -347,11 +352,11 @@ export function FileProcessingArea() {
           });
         } else {
           setConvertedFiles(result.convertedFiles);
-          setStatusText('Conversion complete! Downloading files...');
-          downloadAllFiles(result.convertedFiles);
+          setStatusText('Conversion complete! Preparing download...');
+          await downloadAllAsZip(result.convertedFiles);
           toast({
               title: "Conversion Successful",
-              description: `${totalFiles} notes and ${assetFiles.length} assets have been downloaded.`,
+              description: `${totalFiles} notes and ${assetFiles.length} assets have been prepared for download.`,
           });
         }
         
@@ -372,17 +377,11 @@ export function FileProcessingArea() {
         description: error instanceof Error ? error.message : "An unknown error occurred.",
       });
     } finally {
-      if (!preview) {
         setTimeout(() => {
           setIsLoading(false);
           setStatusText('');
           setQueuedFiles([]);
         }, 3000);
-      } else {
-        setIsLoading(false);
-        setStatusText('');
-        setQueuedFiles([]);
-      }
     }
   };
   
@@ -398,24 +397,40 @@ export function FileProcessingArea() {
     URL.revokeObjectURL(url);
   };
   
-  const downloadAllFiles = (filesToDownload = convertedFiles) => {
-    filesToDownload.forEach(file => downloadFile({newPath: file.newPath, content: file.content}));
-    
-    assetFiles.forEach(file => {
-        const url = URL.createObjectURL(file);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = file.name;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+  const downloadAllAsZip = async (filesToDownload = convertedFiles) => {
+    setStatusText('Creating .zip file...');
+    const zip = new JSZip();
+
+    // Add markdown files
+    filesToDownload.forEach(file => {
+        zip.file(file.newPath, file.content);
     });
+
+    // Add asset files
+    assetFiles.forEach(file => {
+        zip.file(file.name, file);
+    });
+    
+    const zipBlob = await zip.generateAsync({type:"blob"}, (metadata) => {
+        setProgress(metadata.percent);
+        setStatusText(`Compressing files... ${Math.round(metadata.percent)}%`);
+    });
+
+    const url = URL.createObjectURL(zipBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'KeepSync-Export.zip';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setStatusText('Download started!');
   }
 
+
   useEffect(() => {
-    // This effect should only run on the client
-    if (typeof window === 'undefined') {
+    if (typeof window === 'undefined' || !htmlFiles.length) {
+      setFilenamePreview('');
       return;
     }
 
@@ -476,7 +491,7 @@ export function FileProcessingArea() {
       setFilenamePreview(preview + '.md');
     }
     getFilenamePreview();
-  }, [namingOptions, firstNoteTitle]);
+  }, [namingOptions, firstNoteTitle, htmlFiles]);
 
 
   const handlePreviewClick = async () => {
@@ -815,14 +830,14 @@ export function FileProcessingArea() {
                         </div>
                         <div className="flex justify-end gap-2 pt-4">
                             {previewFile && <Button variant="outline" onClick={() => downloadFile({newPath: previewFile.newPath, content: previewFile.content})}>Download Selected</Button>}
-                            <Button onClick={() => downloadAllFiles(convertedFiles)}>Download All Previewed</Button>
+                            <Button onClick={() => downloadAllAsZip(convertedFiles)}>Download All Previewed as .zip</Button>
                         </div>
                     </DialogContent>
                  </Dialog>
 
                 <Button size="lg" variant="secondary" className="w-full sm:w-auto" onClick={() => handleRunConversion(false)} disabled={isLoading || htmlFiles.length === 0}>
-                    {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Download className="mr-2 h-5 w-5" />}
-                    {isLoading ? 'Processing...' : 'Convert & Download All'}
+                    {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <FileArchive className="mr-2 h-5 w-5" />}
+                    {isLoading ? 'Processing...' : 'Convert & Download .zip'}
                 </Button>
             </div>
              {isLoading && (
@@ -852,7 +867,8 @@ export function FileProcessingArea() {
             )}
             {allFiles.length > 0 && !isLoading && (
                 <div className="text-sm text-muted-foreground mt-4 text-center">
-                    <p>This will download {htmlFiles.length} Markdown files and {assetFiles.length} other assets.</p>
+                    <p>This will download a single .zip file containing {htmlFiles.length} notes and {assetFiles.length} assets.</p>
+                     <p className="mt-2 text-xs">For best results in Obsidian, unzip the file and place your assets in the same folder as your notes.</p>
                 </div>
             )}
           </AccordionContent>
@@ -861,5 +877,3 @@ export function FileProcessingArea() {
     </div>
   );
 }
-
-    
