@@ -1,6 +1,7 @@
 
 
 
+
 "use client";
 
 import { useState, useRef, type ChangeEvent, useEffect } from 'react';
@@ -25,6 +26,8 @@ import {
   History,
   AlertTriangle,
   FileSignature,
+  CalendarDays,
+  Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -580,23 +583,25 @@ export function FileProcessingArea() {
       }
   
       let titlePart = firstNoteTitle;
-      if (!namingOptions.useTitle && namingOptions.useBody) { // Simplified for preview
-          const bodyContent = "This is the beginning of the note content and it can be quite long.";
-          let bodySnippet = "";
-          switch (namingOptions.bodyUnit) {
-              case 'characters':
-                  bodySnippet = bodyContent.substring(0, namingOptions.bodyLength);
-                  break;
-              case 'words':
-                  bodySnippet = bodyContent.split(/\s+/).slice(0, namingOptions.bodyLength).join(' ');
-                  break;
-              case 'lines':
-                  bodySnippet = bodyContent.split('\n').slice(0, namingOptions.bodyLength).join(' ');
-                  break;
-          }
-          titlePart = bodySnippet || "Untitled";
-      } else if (!namingOptions.useTitle && !htmlFiles.length) {
-          titlePart = "Untitled";
+      if (htmlFiles.length === 0 || !namingOptions.useTitle) {
+        if (namingOptions.useBody) { // Simplified for preview
+            const bodyContent = "This is the beginning of the note content and it can be quite long.";
+            let bodySnippet = "";
+            switch (namingOptions.bodyUnit) {
+                case 'characters':
+                    bodySnippet = bodyContent.substring(0, namingOptions.bodyLength);
+                    break;
+                case 'words':
+                    bodySnippet = bodyContent.split(/\s+/).slice(0, namingOptions.bodyLength).join(' ');
+                    break;
+                case 'lines':
+                    bodySnippet = bodyContent.split('\n').slice(0, namingOptions.bodyLength).join(' ');
+                    break;
+            }
+            titlePart = bodySnippet || "Untitled";
+        } else if (!namingOptions.useTitle) {
+            titlePart = "Untitled";
+        }
       }
       
       if (titlePart) {
@@ -632,7 +637,7 @@ export function FileProcessingArea() {
       setFilenamePreview(preview + '.md');
     }
     getFilenamePreview();
-  }, [namingOptions, firstNoteTitle]);
+  }, [namingOptions, firstNoteTitle, htmlFiles]);
 
 
   const handlePreviewClick = async () => {
@@ -811,6 +816,10 @@ export function FileProcessingArea() {
                               <InfoTooltip>Use the first part of the body as a fallback if the note has no title.</InfoTooltip>
                             </Label>
                         </div>
+                         <div className="flex items-center space-x-2">
+                            <Checkbox id="emoji" checked={namingOptions.useEmoji} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useEmoji: !!checked }))} />
+                            <Label htmlFor="emoji">Add emoji</Label>
+                        </div>
                     </div>
 
                     {namingOptions.useBody && (
@@ -839,17 +848,60 @@ export function FileProcessingArea() {
                         </div>
                     </div>
                     )}
+
+                    {namingOptions.useEmoji && (
+                        <div className="space-y-4 pt-4 border-t border-border pl-6">
+                            <div className="space-y-2">
+                                <Label className="font-semibold">Emoji</Label>
+                                <RadioGroup value={namingOptions.selectedEmoji} onValueChange={(value) => setNamingOptions(p => ({...p, selectedEmoji: value}))} className="flex flex-wrap gap-x-4 gap-y-2">
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="🟡" id="e-1" />
+                                        <Label htmlFor="e-1">🟡</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="💡" id="e-2" />
+                                        <Label htmlFor="e-2">💡</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="✨" id="e-3" />
+                                        <Label htmlFor="e-3">✨</Label>
+                                    </div>
+                                </RadioGroup>
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="font-semibold">Emoji position</Label>
+                                <RadioGroup 
+                                    value={namingOptions.emojiPosition} 
+                                    onValueChange={(value: 'beforeDate' | 'afterDate' | 'afterTitle') => setNamingOptions(prev => ({ ...prev, emojiPosition: value }))} 
+                                    className="flex flex-wrap gap-x-4 gap-y-2"
+                                >
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="beforeDate" id="ep-1" />
+                                        <Label htmlFor="ep-1">Before date</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="afterDate" id="ep-2" />
+                                        <Label htmlFor="ep-2">After date</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="afterTitle" id="ep-3" />
+                                        <Label htmlFor="ep-3">After title</Label>
+                                    </div>
+                                </RadioGroup>
+                            </div>
+                        </div>
+                    )}
                     
                     <Separator />
 
                      <div className="flex flex-wrap gap-x-6 gap-y-4">
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center gap-2">
                             <Checkbox id="date" checked={namingOptions.useDate} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useDate: !!checked, useSerial: checked ? prev.useSerial : false }))} />
-                            <Label htmlFor="date">Add date</Label>
+                            <Label htmlFor="date" className="flex items-center gap-1"><CalendarDays className="h-4 w-4" /> Add date</Label>
                         </div>
-                         <div className="flex items-center space-x-2">
+                         <div className="flex items-center gap-2">
                             <Checkbox id="time" checked={namingOptions.useTime} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useTime: !!checked }))}/>
-                            <Label htmlFor="time">Add time</Label>
+                            <Label htmlFor="time" className="flex items-center gap-1"><Clock className="h-4 w-4" /> Add time</Label>
                         </div>
                     </div>
                     
@@ -906,99 +958,43 @@ export function FileProcessingArea() {
                                 </div>
                             </RadioGroup>
                         </div>
-                    </div>
-                    )}
-
-
-                    <Separator />
-                    
-                    {namingOptions.useDate && (
-                    <>
-                    <div className="flex flex-wrap gap-x-6 gap-y-4">
-                        <div className="flex items-center space-x-2">
-                            <Checkbox id="serial" checked={namingOptions.useSerial} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useSerial: !!checked }))} />
-                            <Label htmlFor="serial">Add serial number</Label>
+                        <Separator />
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                                <Checkbox id="serial" checked={namingOptions.useSerial} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useSerial: !!checked }))} />
+                                <Label htmlFor="serial" className="flex items-center">
+                                    Add serial number
+                                    <InfoTooltip>Serializes notes to prevent filename conflicts. Recommended if notes have the same creation date.</InfoTooltip>
+                                </Label>
+                            </div>
+                            {namingOptions.useSerial && (
+                                <div className="space-y-2 pl-6">
+                                    <Label className="font-semibold">Serial number padding</Label>
+                                    <RadioGroup value={namingOptions.serialPadding} onValueChange={(value) => setNamingOptions(prev => ({ ...prev, serialPadding: value as '1' | '01' | '001' | '0001' }))} className="flex flex-wrap gap-x-4 gap-y-2">
+                                        <div className="flex items-center space-x-2">
+                                            <RadioGroupItem value="1" id="s1" />
+                                            <Label htmlFor="s1">1, 2, 3</Label>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                            <RadioGroupItem value="01" id="s01" />
+                                            <Label htmlFor="s01">01, 02, 03</Label>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                            <RadioGroupItem value="001" id="s001" />
+                                            <Label htmlFor="s001">001, 002, 003</Label>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                            <RadioGroupItem value="0001" id="s0001" />
+                                            <Label htmlFor="s0001">0001, 0002, 0003</Label>
+                                        </div>
+                                    </RadioGroup>
+                                </div>
+                            )}
                         </div>
                     </div>
-                    {namingOptions.useSerial && (
-                    <div className="space-y-2 pt-4 border-t border-border pl-6">
-                        <Label className="font-semibold flex items-center">Serial number padding <InfoTooltip>Choose the padding for your serial numbers. Sorting by date is recommended for predictable numbering.</InfoTooltip></Label>
-                        <RadioGroup value={namingOptions.serialPadding} onValueChange={(value) => setNamingOptions(prev => ({ ...prev, serialPadding: value as '1' | '01' | '001' | '0001' }))} className="flex flex-wrap gap-x-4 gap-y-2">
-                             <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="1" id="s1" />
-                                <Label htmlFor="s1">1, 2, 3</Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="01" id="s01" />
-                                <Label htmlFor="s01">01, 02, 03</Label>
-                            </div>
-                             <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="001" id="s001" />
-                                <Label htmlFor="s001">001, 002, 003</Label>
-                            </div>
-                             <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="0001" id="s0001" />
-                                <Label htmlFor="s0001">0001, 0002, 0003</Label>
-                            </div>
-                        </RadioGroup>
-                    </div>
-                    )}
-                    <Separator />
-                    </>
-                    )}
-
-                    <div className="flex flex-wrap gap-x-6 gap-y-4">
-                        <div className="flex items-center space-x-2">
-                            <Checkbox id="emoji" checked={namingOptions.useEmoji} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useEmoji: !!checked }))} />
-                            <Label htmlFor="emoji">Add emoji</Label>
-                        </div>
-                    </div>
-
-                    {namingOptions.useEmoji && (
-                        <div className="space-y-4 pt-4 border-t border-border pl-6">
-                            <div className="space-y-2">
-                                <Label className="font-semibold">Emoji</Label>
-                                <RadioGroup value={namingOptions.selectedEmoji} onValueChange={(value) => setNamingOptions(p => ({...p, selectedEmoji: value}))} className="flex flex-wrap gap-x-4 gap-y-2">
-                                    <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="🟡" id="e-1" />
-                                        <Label htmlFor="e-1">🟡</Label>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="💡" id="e-2" />
-                                        <Label htmlFor="e-2">💡</Label>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="✨" id="e-3" />
-                                        <Label htmlFor="e-3">✨</Label>
-                                    </div>
-                                </RadioGroup>
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="font-semibold">Emoji position</Label>
-                                <RadioGroup 
-                                    value={namingOptions.emojiPosition} 
-                                    onValueChange={(value: 'beforeDate' | 'afterDate' | 'afterTitle') => setNamingOptions(prev => ({ ...prev, emojiPosition: value }))} 
-                                    className="flex flex-wrap gap-x-4 gap-y-2"
-                                >
-                                    <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="beforeDate" id="ep-1" />
-                                        <Label htmlFor="ep-1">Before date</Label>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="afterDate" id="ep-2" />
-                                        <Label htmlFor="ep-2">After date</Label>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="afterTitle" id="ep-3" />
-                                        <Label htmlFor="ep-3">After title</Label>
-                                    </div>
-                                </RadioGroup>
-                            </div>
-                        </div>
                     )}
 
                     <Separator />
-
 
                     <div className="bg-secondary p-3 rounded-md text-sm text-muted-foreground flex items-center gap-2">
                         <Eye className="h-4 w-4 text-primary shrink-0"/>
@@ -1018,9 +1014,9 @@ export function FileProcessingArea() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4 pt-6">
-                     <div>
+                     <div className="space-y-2">
                         <Label className="font-semibold flex items-center">Tag handling <span className="ml-2 text-sm font-normal text-muted-foreground">relevant for Obsidian Graphs</span><InfoTooltip>Choose how to represent Google Keep tags in Obsidian.</InfoTooltip></Label>
-                        <RadioGroup value={formattingOptions.tagHandling} onValueChange={(value) => setFormattingOptions(prev => ({...prev, tagHandling: value as 'links' | 'hash' | 'atlinks'}))} className="flex flex-wrap gap-x-4 gap-y-2">
+                        <RadioGroup value={formattingOptions.tagHandling} onValueChange={(value) => setFormattingOptions(prev => ({...prev, tagHandling: value as 'links' | 'hash' | 'atlinks'}))} className="flex flex-wrap gap-x-4 gap-y-2 pt-2">
                              <div className="flex items-center space-x-2">
                                 <RadioGroupItem value="links" id="links" />
                                 <Label htmlFor="links">Links (notes)</Label>
