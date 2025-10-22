@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, createContext, useContext, ReactNode } from 'react';
 import { type NamingOptions, type FormattingOptions } from '@/ai/schemas';
 import { useToast } from '@/hooks/use-toast';
 
@@ -34,7 +34,21 @@ const initialFormattingOptions: FormattingOptions = {
     tagHandling: 'hash',
 };
 
-export const usePresets = () => {
+type PresetsContextType = {
+    presets: Preset[];
+    namingOptions: NamingOptions;
+    setNamingOptions: React.Dispatch<React.SetStateAction<NamingOptions>>;
+    formattingOptions: FormattingOptions;
+    setFormattingOptions: React.Dispatch<React.SetStateAction<FormattingOptions>>;
+    selectedPreset: string;
+    handleSelectPreset: (name: string) => void;
+    handleSavePreset: (presetName: string) => void;
+    handleDeletePreset: (name: string) => void;
+};
+
+const PresetsContext = createContext<PresetsContextType | undefined>(undefined);
+
+export const PresetsProvider = ({ children }: { children: ReactNode }) => {
     const [namingOptions, setNamingOptions] = useState<NamingOptions>(initialNamingOptions);
     const [formattingOptions, setFormattingOptions] = useState<FormattingOptions>(initialFormattingOptions);
     const [presets, setPresets] = useState<Preset[]>([]);
@@ -48,6 +62,10 @@ export const usePresets = () => {
                 if (savedPresets) {
                     setPresets(JSON.parse(savedPresets));
                 }
+                 const savedLastPreset = localStorage.getItem('keepSyncLastPreset');
+                 if(savedLastPreset) {
+                    handleSelectPreset(savedLastPreset);
+                 }
             } catch (error) {
                 console.error("Failed to load presets from localStorage", error);
             }
@@ -70,41 +88,52 @@ export const usePresets = () => {
             options: { naming: namingOptions, formatting: formattingOptions }
         };
 
-        const existingIndex = presets.findIndex(p => p.name === presetName);
-        if (existingIndex > -1) {
-            const updatedPresets = [...presets];
-            updatedPresets[existingIndex] = newPreset;
-            setPresets(updatedPresets);
-        } else {
-            setPresets(prev => [...prev, newPreset]);
-        }
+        setPresets(currentPresets => {
+            const existingIndex = currentPresets.findIndex(p => p.name === presetName);
+            if (existingIndex > -1) {
+                const updatedPresets = [...currentPresets];
+                updatedPresets[existingIndex] = newPreset;
+                return updatedPresets;
+            } else {
+                return [...currentPresets, newPreset];
+            }
+        });
         setSelectedPreset(newPreset.name);
-    }, [namingOptions, formattingOptions, presets]);
+        localStorage.setItem('keepSyncLastPreset', newPreset.name);
+    }, [namingOptions, formattingOptions]);
 
     const handleSelectPreset = useCallback((name: string) => {
         if (name === 'default') {
             setNamingOptions(initialNamingOptions);
             setFormattingOptions(initialFormattingOptions);
             setSelectedPreset('');
+            localStorage.removeItem('keepSyncLastPreset');
             return;
         }
-        const preset = presets.find(p => p.name === name);
+        // This logic runs on initial load, so we need to check presets from storage
+        const currentPresets = JSON.parse(localStorage.getItem('keepSyncPresets') || '[]');
+        const preset = currentPresets.find((p: Preset) => p.name === name);
+        
         if (preset) {
             setNamingOptions(preset.options.naming);
             setFormattingOptions(preset.options.formatting);
             setSelectedPreset(name);
-            toast({ title: 'Preset Loaded', description: `Settings for "${name}" have been applied.` });
+            localStorage.setItem('keepSyncLastPreset', name);
+            // We don't toast on initial load, only on user interaction. 
+            // The toast logic can be kept in the component that calls this.
+        } else if (name) { // If a preset was saved but doesn't exist, reset
+            handleSelectPreset('default');
         }
-    }, [presets, toast]);
+    }, []);
 
     const handleDeletePreset = useCallback((name: string) => {
         setPresets(presets.filter(p => p.name !== name));
         if (selectedPreset === name) {
-            handleSelectPreset('default'); // Revert to default settings
+            handleSelectPreset('default');
         }
-    }, [presets, selectedPreset, handleSelectPreset]);
+    }, [presets, selectedPreset]);
     
-    return {
+    const contextValue = {
         presets,
         namingOptions,
         setNamingOptions,
@@ -114,7 +143,19 @@ export const usePresets = () => {
         handleSelectPreset,
         handleSavePreset,
         handleDeletePreset,
-        initialNamingOptions,
-        initialFormattingOptions
     };
+    
+    return (
+        <PresetsContext.Provider value={contextValue}>
+            {children}
+        </PresetsContext.Provider>
+    );
+};
+
+export const usePresets = () => {
+    const context = useContext(PresetsContext);
+    if (context === undefined) {
+        throw new Error('usePresets must be used within a PresetsProvider');
+    }
+    return context;
 };
