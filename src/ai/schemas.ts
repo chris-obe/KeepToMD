@@ -16,6 +16,7 @@ export const NamingOptionsSchema = z.object({
   useEmoji: z.boolean(),
   selectedEmoji: z.string(),
   emojiPosition: z.enum(['beforeDate', 'afterDate', 'afterTitle']),
+  fillerText: z.string(),
 });
 export type NamingOptions = z.infer<typeof NamingOptionsSchema>;
 
@@ -34,3 +35,5 @@ export const ConvertToMarkdownOutputSchema = z.object({
   })),
 });
 export type ConvertToMarkdownOutput = z.infer<typeof ConvertToMarkdownOutputSchema>;
+
+    

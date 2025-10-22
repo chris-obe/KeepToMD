@@ -25,6 +25,7 @@ import {
   FileSignature,
   CalendarDays,
   Clock,
+  Pencil,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -179,7 +180,7 @@ function createFilename(data: ReturnType<typeof parseKeepHtml>, options: NamingO
   let titlePart = '';
   if (options.useTitle && data.title) {
     titlePart = data.title;
-  } else if (options.useBody) {
+  } else if (options.useBody && !data.title) {
     const cleanContent = data.content.replace(/\s+/g, ' ').trim();
     let snippet = '';
     if (options.bodyUnit === 'characters') {
@@ -193,7 +194,7 @@ function createFilename(data: ReturnType<typeof parseKeepHtml>, options: NamingO
   }
   
   if (!titlePart) {
-      titlePart = 'Untitled';
+      titlePart = options.fillerText || 'Untitled';
   }
 
   titlePart = titlePart.replace(/[\\/]/g, '-'); // Sanitize
@@ -286,6 +287,8 @@ export function FileProcessingArea() {
   const [runHistory, setRunHistory] = useState<RunHistoryItem[]>([]);
   const [duplicateRun, setDuplicateRun] = useState<RunHistoryItem | null>(null);
   const [isDuplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  
+  const isFillerTextActive = !namingOptions.useTitle || !namingOptions.useBody;
 
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -579,26 +582,28 @@ export function FileProcessingArea() {
           parts.push(dateTimePart);
       }
   
-      let titlePart = firstNoteTitle;
-      if (htmlFiles.length === 0 || !namingOptions.useTitle) {
-        if (namingOptions.useBody) { // Simplified for preview
-            const bodyContent = "This is the beginning of the note content and it can be quite long.";
-            let bodySnippet = "";
-            switch (namingOptions.bodyUnit) {
-                case 'characters':
-                    bodySnippet = bodyContent.substring(0, namingOptions.bodyLength);
-                    break;
-                case 'words':
-                    bodySnippet = bodyContent.split(/\s+/).slice(0, namingOptions.bodyLength).join(' ');
-                    break;
-                case 'lines':
-                    bodySnippet = bodyContent.split('\n').slice(0, namingOptions.bodyLength).join(' ');
-                    break;
-            }
-            titlePart = bodySnippet || "Untitled";
-        } else if (!namingOptions.useTitle) {
-            titlePart = "Untitled";
-        }
+      let titlePart = '';
+      if (namingOptions.useTitle) {
+          titlePart = firstNoteTitle;
+      } else if (namingOptions.useBody) { // Simplified for preview
+          const bodyContent = "This is the beginning of the note content and it can be quite long.";
+          let bodySnippet = "";
+          switch (namingOptions.bodyUnit) {
+              case 'characters':
+                  bodySnippet = bodyContent.substring(0, namingOptions.bodyLength);
+                  break;
+              case 'words':
+                  bodySnippet = bodyContent.split(/\s+/).slice(0, namingOptions.bodyLength).join(' ');
+                  break;
+              case 'lines':
+                  bodySnippet = bodyContent.split('\n').slice(0, namingOptions.bodyLength).join(' ');
+                  break;
+          }
+          titlePart = bodySnippet;
+      }
+      
+      if (!titlePart) {
+          titlePart = namingOptions.fillerText || "Untitled";
       }
       
       if (titlePart) {
@@ -801,7 +806,7 @@ export function FileProcessingArea() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    <div className="flex flex-wrap gap-x-6 gap-y-4">
+                    <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
                         <div className="flex items-center space-x-2">
                             <Checkbox id="title" checked={namingOptions.useTitle} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useTitle: !!checked }))} />
                             <Label htmlFor="title">Use note title</Label>
@@ -818,6 +823,23 @@ export function FileProcessingArea() {
                             <Label htmlFor="emoji">Add emoji</Label>
                         </div>
                     </div>
+
+                     {isFillerTextActive && (
+                      <div className="space-y-2 pt-4 border-t border-border pl-6">
+                        <Label htmlFor="filler-text" className="font-semibold flex items-center gap-2">
+                          <Pencil className="h-4 w-4" />
+                          Fallback title text
+                        </Label>
+                        <Input
+                          id="filler-text"
+                          placeholder="Untitled Note"
+                          value={namingOptions.fillerText}
+                          onChange={(e) => setNamingOptions(p => ({...p, fillerText: e.target.value}))}
+                        />
+                         <p className="text-xs text-muted-foreground">This text will be used if a title cannot be generated from the note's title or body content.</p>
+                      </div>
+                    )}
+
 
                     {namingOptions.useBody && (
                     <div className="space-y-4 pt-4 border-t border-border pl-6">
@@ -1103,7 +1125,7 @@ export function FileProcessingArea() {
           </AccordionTrigger>
           <AccordionContent className="px-6 pt-4 pb-6">
              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                <Button size="lg" variant="secondary" className="w-full" onClick={() => startConversion(htmlFiles, false)} disabled={isLoading || htmlFiles.length === 0}>
+                <Button size="lg" className="w-full" onClick={() => startConversion(htmlFiles, false)} disabled={isLoading || htmlFiles.length === 0}>
                     {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Download className="mr-2 h-5 w-5" />}
                     {isLoading ? 'Processing...' : 'Convert & Download .zip'}
                 </Button>
@@ -1148,4 +1170,6 @@ export function FileProcessingArea() {
     </div>
   );
 }
+    
+
     

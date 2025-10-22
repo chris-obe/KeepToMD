@@ -27,6 +27,7 @@ const initialNamingOptions: NamingOptions = {
     useEmoji: false,
     selectedEmoji: '💡',
     emojiPosition: 'beforeDate',
+    fillerText: 'Untitled',
 };
 
 const initialFormattingOptions: FormattingOptions = {
@@ -197,3 +198,5 @@ export const usePresets = () => {
         handleDeletePreset: (name: string) => dispatch({ type: 'DELETE_PRESET', payload: name }),
     };
 };
+
+    
