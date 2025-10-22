@@ -21,6 +21,8 @@ import {
   Smile,
   Save,
   Trash2,
+  History,
+  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -39,6 +41,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+
 import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import {
@@ -58,6 +72,7 @@ import { format } from 'date-fns';
 import TurndownService from 'turndown';
 import JSZip from 'jszip';
 import { Input } from '../ui/input';
+import CryptoJS from 'crypto-js';
 
 
 const turndownService = new TurndownService();
@@ -213,6 +228,22 @@ type Preset = {
   };
 };
 
+export type RunHistoryItem = {
+  id: string;
+  date: string;
+  hash: string;
+  fileCount: number;
+  fileIdentifiers: string[];
+};
+
+const getFileIdentifier = (file: File) => `${file.name}_${file.lastModified}`;
+
+const generateHash = (files: File[]) => {
+  const fileDetails = files.map(getFileIdentifier).sort().join('|');
+  return CryptoJS.SHA256(fileDetails).toString();
+};
+
+
 const InfoTooltip = ({ children }: { children: React.ReactNode }) => (
   <TooltipProvider>
     <Tooltip>
@@ -269,8 +300,38 @@ export function FileProcessingArea() {
   const [presetName, setPresetName] = useState('');
   const [selectedPreset, setSelectedPreset] = useState('');
 
+  const [runHistory, setRunHistory] = useState<RunHistoryItem[]>([]);
+  const [duplicateRun, setDuplicateRun] = useState<RunHistoryItem | null>(null);
+  const [isDuplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // --- History Management ---
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedHistory = localStorage.getItem('keepSyncHistory');
+        if (savedHistory) {
+          setRunHistory(JSON.parse(savedHistory));
+        }
+      } catch (error) {
+        console.error("Failed to load history from localStorage", error);
+      }
+    }
+  }, []);
+
+  const addToHistory = (newRun: Omit<RunHistoryItem, 'id' | 'date'>) => {
+    const runToAdd: RunHistoryItem = {
+      ...newRun,
+      id: new Date().toISOString(),
+      date: new Date().toISOString(),
+    };
+    const updatedHistory = [runToAdd, ...runHistory];
+    setRunHistory(updatedHistory);
+    localStorage.setItem('keepSyncHistory', JSON.stringify(updatedHistory));
+  };
+
 
   // --- Preset Management ---
   useEffect(() => {
@@ -360,6 +421,17 @@ export function FileProcessingArea() {
         setAssetFiles(selectedFiles.filter(file => file.type !== 'text/html'));
         setConvertedFiles([]); // Reset on new file selection
         setProgress(0);
+        
+        if (htmls.length > 0) {
+          const currentHash = generateHash(htmls);
+          const foundDuplicate = runHistory.find(run => run.hash === currentHash);
+          if (foundDuplicate) {
+              setDuplicateRun(foundDuplicate);
+              setDuplicateDialogOpen(true);
+          } else {
+              setDuplicateRun(null);
+          }
+        }
     }
   };
 
@@ -382,9 +454,43 @@ export function FileProcessingArea() {
         setFirstNoteTitle('My Note Title');
     }
   }, [htmlFiles]);
+  
+  const startConversion = (files: File[], isPreview: boolean) => {
+    if(isPreview) {
+      handleRunConversion(files, true);
+    } else {
+      handleRunConversion(files, false);
+    }
+  }
 
-  const handleRunConversion = async (preview = false) => {
-    if (htmlFiles.length === 0) {
+  const handleDuplicateDialogAction = (action: 'new' | 'all') => {
+    setDuplicateDialogOpen(false);
+    if (action === 'all') {
+      startConversion(htmlFiles, false);
+    } else if (action === 'new') {
+      const processedFileIdentifiers = new Set(
+        runHistory.flatMap(run => run.fileIdentifiers)
+      );
+      const newFiles = htmlFiles.filter(file => !processedFileIdentifiers.has(getFileIdentifier(file)));
+      
+      if(newFiles.length === 0) {
+        toast({
+          title: "No New Files",
+          description: "All notes in this selection have been converted in previous runs.",
+        });
+        return;
+      }
+      toast({
+        title: "Converting New Files",
+        description: `Skipping ${htmlFiles.length - newFiles.length} previously converted notes.`,
+      });
+      startConversion(newFiles, false);
+    }
+  };
+
+
+  const handleRunConversion = async (filesToProcess: File[], preview = false) => {
+    if (filesToProcess.length === 0) {
       toast({
         variant: "destructive",
         title: "No HTML files selected",
@@ -400,9 +506,6 @@ export function FileProcessingArea() {
     }
   
     try {
-      // Create a temporary array of files to be processed
-      let filesToProcess = [...htmlFiles];
-  
       // If date sorting is enabled, we need to read all dates first.
       if (namingOptions.useDate) {
         setStatusText('Sorting files by date...');
@@ -468,6 +571,11 @@ export function FileProcessingArea() {
           setConvertedFiles(result.convertedFiles);
           setStatusText('Conversion complete! Preparing download...');
           await downloadAllAsZip(result.convertedFiles);
+          
+          const currentHash = generateHash(filesToProcess);
+          const fileIdentifiers = filesToProcess.map(getFileIdentifier);
+          addToHistory({ hash: currentHash, fileCount: filesToProcess.length, fileIdentifiers });
+
           toast({
               title: "Conversion Successful",
               description: `${totalFiles} notes and ${assetFiles.length} assets have been prepared for download.`,
@@ -629,7 +737,7 @@ export function FileProcessingArea() {
 
 
   const handlePreviewClick = async () => {
-    await handleRunConversion(true);
+    await handleRunConversion(htmlFiles, true);
   }
 
   // A simple function to convert markdown-style image links to HTML img tags
@@ -675,6 +783,33 @@ export function FileProcessingArea() {
         accept=".html,.jpg,.jpeg,.png,.gif,.mp3,.wav,.ogg,.m4a"
         webkitdirectory=""
       />
+       <AlertDialog open={isDuplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="text-primary h-6 w-6" />
+              Duplicate Run Detected
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              It looks like you've processed this exact set of files before on{' '}
+              {duplicateRun ? format(new Date(duplicateRun.date), 'PPpp') : 'a previous date'}.
+              How would you like to proceed?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <Button variant="outline" onClick={() => handleDuplicateDialogAction('new')}>
+              Convert New Files Only
+            </Button>
+            <Button variant="secondary" onClick={() => handleDuplicateDialogAction('all')}>
+              Convert All Again
+            </Button>
+            <AlertDialogCancel asChild>
+              <Button variant="ghost" onClick={() => setDuplicateDialogOpen(false)}>Cancel</Button>
+            </AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Accordion type="multiple" defaultValue={['item-1', 'item-2', 'item-3']} className="w-full space-y-4">
         {/* Import Section */}
         <AccordionItem value="item-1" className="border rounded-lg bg-card overflow-hidden">
@@ -1067,7 +1202,7 @@ export function FileProcessingArea() {
                     </DialogContent>
                  </Dialog>
 
-                <Button size="lg" variant="secondary" className="w-full sm:w-auto" onClick={() => handleRunConversion(false)} disabled={isLoading || htmlFiles.length === 0}>
+                <Button size="lg" variant="secondary" className="w-full sm:w-auto" onClick={() => startConversion(htmlFiles, false)} disabled={isLoading || htmlFiles.length === 0}>
                     {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <FileArchive className="mr-2 h-5 w-5" />}
                     {isLoading ? 'Processing...' : 'Convert & Download .zip'}
                 </Button>
