@@ -945,8 +945,7 @@ export function FileProcessingArea() {
                                     </div>
                                     <div className="flex items-center space-x-2">
                                         <RadioGroupItem value="dd-MM-yyyy" id="df-2" />
-                                        <Label htmlFor="df-2">29-07-2024</Label>
-                                    </div>
+                                        <Label htmlFor="df-2">29-07-2024</Label>                                    </div>
                                     <div className="flex items-center space-x-2">
                                         <RadioGroupItem value="MM-dd-yyyy" id="df-3" />
                                         <Label htmlFor="df-3">07-29-2024</Label>
@@ -1134,7 +1133,7 @@ export function FileProcessingArea() {
           </AccordionTrigger>
           <AccordionContent className="px-6 pt-4 pb-6">
              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                <Button size="lg" className="w-full" onClick={() => startConversion(htmlFiles, false)} disabled={isLoading || htmlFiles.length === 0}>
+                <Button size="lg" className="w-full text-accent-foreground" onClick={() => startConversion(htmlFiles, false)} disabled={isLoading || htmlFiles.length === 0} style={{ backgroundColor: 'hsl(var(--accent))' }}>
                     {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Download className="mr-2 h-5 w-5" />}
                     {isLoading ? 'Processing...' : 'Convert & Download .zip'}
                 </Button>
