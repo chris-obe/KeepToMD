@@ -27,6 +27,7 @@ import {
   CalendarDays,
   Clock,
   Pencil,
+  Type,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -775,7 +776,7 @@ export function FileProcessingArea() {
             <span>Process</span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-6 space-y-6">
+        <CardContent className="p-6 space-y-4">
            <Accordion type="multiple" defaultValue={['item-1', 'item-2']} className="w-full">
             <Card className="bg-background/50 overflow-hidden">
                 <AccordionItem value="item-1" className="border-b-0">
@@ -818,7 +819,7 @@ export function FileProcessingArea() {
                         </div>
                       </div>
                     </div>
-                    <AccordionContent className="px-6 pb-6 pt-0 space-y-6">
+                    <AccordionContent className="px-6 pb-6 pt-0 space-y-4">
                         <Separator />
                         <div className="flex flex-wrap items-center gap-x-6 gap-y-4 pt-4">
                             <div className="flex items-center space-x-2">
@@ -1066,8 +1067,8 @@ export function FileProcessingArea() {
                       </div>
                     </div>
 
-                    <AccordionContent className="px-6 pb-6 pt-0 space-y-6">
-                        <Separator className="mb-6"/>
+                    <AccordionContent className="px-6 pb-6 pt-0 space-y-4">
+                        <Separator className="mb-4"/>
                         <div className="space-y-2">
                             <Label className="font-semibold flex items-center">Tag handling <span className="ml-2 text-sm font-normal text-muted-foreground">relevant for Obsidian Graphs</span><InfoTooltip>Choose how to represent Google Keep tags in Obsidian.</InfoTooltip></Label>
                             <RadioGroup value={formattingOptions.tagHandling} onValueChange={(value) => setFormattingOptions(prev => ({...prev, tagHandling: value as 'links' | 'hash' | 'atlinks'}))} className="flex flex-wrap gap-4 pt-2">
@@ -1090,7 +1091,7 @@ export function FileProcessingArea() {
             </Card>
            </Accordion>
            <Separator />
-            <div className="space-y-4 pt-6">
+            <div className="space-y-4 pt-4">
                 <div className="space-y-2">
                     <Label htmlFor="preset-name-save">Save Current Naming Settings as Preset</Label>
                     <div className="flex gap-2">
