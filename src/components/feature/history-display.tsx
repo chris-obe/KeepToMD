@@ -11,7 +11,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ShieldCheck, Trash2 } from 'lucide-react';
+import { History, ShieldCheck, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { RunHistoryItem } from './file-processing-area';
 import {
@@ -75,7 +75,11 @@ export function HistoryDisplay({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        {children}
+        {children || (
+            <Button variant="outline" size="icon" className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg">
+                <History className="h-6 w-6" />
+            </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
