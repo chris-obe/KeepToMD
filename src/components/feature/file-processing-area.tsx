@@ -775,8 +775,8 @@ export function FileProcessingArea() {
             <span>Process</span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-6">
-           <Accordion type="multiple" defaultValue={['item-1', 'item-2']} className="w-full space-y-4">
+        <CardContent className="p-6 space-y-6">
+           <Accordion type="multiple" defaultValue={['item-1', 'item-2']} className="w-full">
             <Card className="bg-background/50 overflow-hidden">
                 <AccordionItem value="item-1" className="border-b-0">
                     <div className="px-6 py-4 space-y-4">
@@ -1093,78 +1093,80 @@ export function FileProcessingArea() {
             </Card>
            </Accordion>
            <Separator />
-            <div className="space-y-2">
-              <Label htmlFor="preset-name-save">Save Current Naming Settings as Preset</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="preset-name-save"
-                  placeholder="My Awesome Naming Preset"
-                  value={presetNameToSave}
-                  onChange={(e) => setPresetNameToSave(e.target.value)}
-                />
-                <Button onClick={onSavePreset}><Save className="mr-2 h-4 w-4" /> Save</Button>
-              </div>
-            </div>
-            <Separator />
-              <Dialog>
-                <DialogTrigger asChild>
-                    <Button id="preview-dialog-trigger" className="w-full" onClick={handlePreviewClick} disabled={isLoading || htmlFiles.length === 0}>
-                        {isLoading && convertedFiles.length === 0 ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Eye className="mr-2 h-5 w-5" />}
-                        {isLoading && convertedFiles.length === 0 ? 'Processing...' : 'Preview All Options'}
-                    </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
-                    <DialogHeader>
-                        <DialogTitle>Conversion Preview</DialogTitle>
-                        <div className="space-y-2 pt-2">
-                            <Label>Markdown Preset</Label>
-                            <Select onValueChange={handleSelectMarkdownPreset} value={selectedMarkdownPreset}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select a preset to preview..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="default">Default Settings</SelectItem>
-                                <Separator className="my-1" />
-                                {markdownPresets.map(p => (
-                                <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                            </Select>
-                        </div>
-                    </DialogHeader>
-                    <div className="flex-grow grid grid-cols-3 gap-4 overflow-hidden pt-4">
-                        <ScrollArea className="col-span-1 border rounded-lg">
-                            <div className="p-4">
-                            {convertedFiles.map((file, index) => (
-                                <div key={index}>
-                                    <button onClick={() => setPreviewFile(file)} className={`w-full text-left p-2 rounded-md ${previewFile?.originalPath === file.originalPath ? 'bg-accent' : ''}`}>
-                                        <p className="font-semibold truncate">{file.newPath}</p>
-                                        <p className="text-xs text-muted-foreground truncate">{file.originalPath}</p>
-                                    </button>
-                                </div>
-                            ))}
+            <div className="space-y-4 pt-6">
+                <div className="space-y-2">
+                    <Label htmlFor="preset-name-save">Save Current Naming Settings as Preset</Label>
+                    <div className="flex gap-2">
+                        <Input
+                        id="preset-name-save"
+                        placeholder="My Awesome Naming Preset"
+                        value={presetNameToSave}
+                        onChange={(e) => setPresetNameToSave(e.target.value)}
+                        />
+                        <Button onClick={onSavePreset}><Save className="mr-2 h-4 w-4" /> Save</Button>
+                    </div>
+                </div>
+                <Separator />
+                <Dialog>
+                    <DialogTrigger asChild>
+                        <Button id="preview-dialog-trigger" className="w-full" onClick={handlePreviewClick} disabled={isLoading || htmlFiles.length === 0}>
+                            {isLoading && convertedFiles.length === 0 ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Eye className="mr-2 h-5 w-5" />}
+                            {isLoading && convertedFiles.length === 0 ? 'Processing...' : 'Preview All Options'}
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+                        <DialogHeader>
+                            <DialogTitle>Conversion Preview</DialogTitle>
+                            <div className="space-y-2 pt-2">
+                                <Label>Markdown Preset</Label>
+                                <Select onValueChange={handleSelectMarkdownPreset} value={selectedMarkdownPreset}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select a preset to preview..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="default">Default Settings</SelectItem>
+                                    <Separator className="my-1" />
+                                    {markdownPresets.map(p => (
+                                    <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                                </Select>
                             </div>
-                        </ScrollArea>
-                        <ScrollArea className="col-span-2 border rounded-lg">
-                            {previewFile ? (
+                        </DialogHeader>
+                        <div className="flex-grow grid grid-cols-3 gap-4 overflow-hidden pt-4">
+                            <ScrollArea className="col-span-1 border rounded-lg">
                                 <div className="p-4">
-                                    <div className="prose dark:prose-invert max-w-none prose-p:my-2 prose-h1:mb-4 prose-h1:mt-2 prose-h2:mb-3 prose-h2:mt-1.5 prose-h3:mb-2 prose-h3:mt-1 font-body text-foreground">
-                                      {renderMarkdownContent(previewFile.content)}
+                                {convertedFiles.map((file, index) => (
+                                    <div key={index}>
+                                        <button onClick={() => setPreviewFile(file)} className={`w-full text-left p-2 rounded-md ${previewFile?.originalPath === file.originalPath ? 'bg-accent' : ''}`}>
+                                            <p className="font-semibold truncate">{file.newPath}</p>
+                                            <p className="text-xs text-muted-foreground truncate">{file.originalPath}</p>
+                                        </button>
                                     </div>
+                                ))}
                                 </div>
-                            ) : (
-                                <div className="flex items-center justify-center h-full text-muted-foreground">
-                                    <p>Select a file to preview</p>
-                                </div>
-                            )}
-                        </ScrollArea>
-                    </div>
-                    <div className="flex justify-end gap-2 pt-4">
-                        {previewFile && <Button variant="outline" onClick={() => downloadFile({newPath: previewFile.newPath, content: previewFile.content})}>Download Selected</Button>}
-                        <Button onClick={() => downloadAllAsZip(convertedFiles)}>Download All Previewed as .zip</Button>
-                    </div>
-                </DialogContent>
-              </Dialog>
+                            </ScrollArea>
+                            <ScrollArea className="col-span-2 border rounded-lg">
+                                {previewFile ? (
+                                    <div className="p-4">
+                                        <div className="prose dark:prose-invert max-w-none prose-p:my-2 prose-h1:mb-4 prose-h1:mt-2 prose-h2:mb-3 prose-h2:mt-1.5 prose-h3:mb-2 prose-h3:mt-1 font-body text-foreground">
+                                          {renderMarkdownContent(previewFile.content)}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                                        <p>Select a file to preview</p>
+                                    </div>
+                                )}
+                            </ScrollArea>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-4">
+                            {previewFile && <Button variant="outline" onClick={() => downloadFile({newPath: previewFile.newPath, content: previewFile.content})}>Download Selected</Button>}
+                            <Button onClick={() => downloadAllAsZip(convertedFiles)}>Download All Previewed as .zip</Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            </div>
         </CardContent>
       </Card>
 

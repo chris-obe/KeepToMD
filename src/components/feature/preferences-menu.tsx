@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { History, Settings, Moon, Sun, Library, Type } from 'lucide-react';
+import { History, Settings, Moon, Sun, FileText, Type } from 'lucide-react';
 import { HistoryDisplay } from './history-display';
 import { useTheme } from 'next-themes';
 import { PresetManager } from './preset-manager';
@@ -34,14 +34,14 @@ export function PreferencesMenu() {
       action: 'history',
     },
     {
-      label: 'Naming Presets',
-      icon: Library,
+      label: 'File Name Presets',
+      icon: Type,
       action: 'namingPresets',
       type: 'naming' as const,
     },
     {
         label: 'Markdown Presets',
-        icon: Type,
+        icon: FileText,
         action: 'markdownPresets',
         type: 'markdown' as const,
     },
@@ -57,6 +57,12 @@ export function PreferencesMenu() {
     if (!mounted && (item.icon === Sun || item.icon === Moon)) {
       return null;
     }
+    
+    let label = item.label;
+    if (item.action === toggleTheme) {
+        label = `Toggle ${theme === 'dark' ? 'Light' : 'Dark'} Mode`;
+    }
+
 
     const button = (
       <Button
@@ -82,7 +88,7 @@ export function PreferencesMenu() {
         <Tooltip>
           <TooltipTrigger asChild>{content}</TooltipTrigger>
           <TooltipContent side="left" align="center">
-            <p>{item.label}</p>
+            <p>{label}</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
