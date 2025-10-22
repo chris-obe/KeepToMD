@@ -269,11 +269,8 @@ export function FileProcessingArea() {
     setFormattingOptions,
     selectedPreset,
     handleSelectPreset,
-    handleSavePreset,
     handleDeletePreset
   } = usePresets();
-
-  const [presetName, setPresetName] = useState('');
 
   const [convertedFiles, setConvertedFiles] = useState<ConvertToMarkdownOutput['convertedFiles']>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -677,17 +674,6 @@ export function FileProcessingArea() {
     setNamingOptions(p => ({...p, bodyUnit: value, bodyLength: newLength}));
   }
 
-  const onSavePreset = () => {
-    if (!presetName) {
-      toast({ variant: 'destructive', title: 'Preset name cannot be empty.' });
-      return;
-    }
-    handleSavePreset(presetName);
-    toast({ title: 'Preset Saved', description: `Preset "${presetName}" has been saved.` });
-    setPresetName('');
-  };
-
-
   return (
     <div className="w-full max-w-4xl animate-in fade-in-50 duration-500">
       <input
@@ -1088,21 +1074,6 @@ export function FileProcessingArea() {
 
                 </CardContent>
             </Card>
-            <div className="space-y-2 pt-6 border-t">
-              <Label htmlFor="preset-name">Save Current Settings as Preset</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="preset-name"
-                  placeholder="My Awesome Preset"
-                  value={presetName}
-                  onChange={(e) => setPresetName(e.target.value)}
-                />
-                <Button onClick={onSavePreset}>
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Preset
-                </Button>
-              </div>
-            </div>
 
           </AccordionContent>
         </AccordionItem>
