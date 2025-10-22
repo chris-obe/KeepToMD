@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -84,7 +85,7 @@ export function PreferencesMenu() {
     }
 
     return (
-      <TooltipProvider key={item.label}>
+      <TooltipProvider key={item.label} delayDuration={0}>
         <Tooltip>
           <TooltipTrigger asChild>{content}</TooltipTrigger>
           <TooltipContent side="left" align="center">
@@ -114,7 +115,7 @@ export function PreferencesMenu() {
         </div>
 
         {/* Main Trigger Button */}
-        <TooltipProvider>
+        <TooltipProvider delayDuration={0}>
           <Tooltip open={isOpen ? false : undefined}>
             <TooltipTrigger asChild>
               <Button

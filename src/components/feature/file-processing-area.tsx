@@ -210,7 +210,7 @@ function createFilename(data: ReturnType<typeof parseKeepHtml>, options: NamingO
 
   if (dateTimePart && options.datePosition === 'append') {
       if (options.useEmoji && effectiveEmojiPosition === 'beforeDate') {
-          dateTimePart = `${emojiPart} ${dateTimePart}`;
+          dateTimePart = `${emojiPart} ${emojiPart}`;
       }
       if (options.useEmoji && effectiveEmojiPosition === 'afterDate') {
           dateTimePart = `${dateTimePart} ${emojiPart}`;
@@ -820,7 +820,7 @@ export function FileProcessingArea() {
                     </div>
                     <AccordionContent className="px-6 pb-6 pt-0 space-y-6">
                         <Separator />
-                        <div className="flex flex-wrap items-center gap-x-6 gap-y-4 pt-6">
+                        <div className="flex flex-wrap items-center gap-x-6 gap-y-4 pt-4">
                             <div className="flex items-center space-x-2">
                                 <Checkbox id="title" checked={namingOptions.useTitle} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useTitle: !!checked }))} />
                                 <Label htmlFor="title">Use note title</Label>
@@ -1038,7 +1038,7 @@ export function FileProcessingArea() {
                 </AccordionItem>
             </Card>
 
-            <Card className="bg-background/50 overflow-hidden">
+            <Card className="bg-background/50 overflow-hidden mt-4">
                 <AccordionItem value="item-2" className="border-b-0">
                     <div className="px-6 py-4 space-y-4">
                       <AccordionTrigger className="text-base font-semibold hover:no-underline [&[data-state=open]>svg]:-rotate-180 p-0">
@@ -1062,9 +1062,6 @@ export function FileProcessingArea() {
                                   ))}
                               </SelectContent>
                               </Select>
-                              <Button variant="outline" onClick={handlePreviewClick}>
-                                  <Eye className="h-4 w-4" />
-                              </Button>
                           </div>
                       </div>
                     </div>
