@@ -1,11 +1,9 @@
 import { FileProcessingArea } from '@/components/feature/file-processing-area';
 import { PreferencesMenu } from '@/components/feature/preferences-menu';
-import { PresetsProvider } from '@/hooks/use-presets';
 import { Notebook } from 'lucide-react';
 
 export default function Home() {
   return (
-    <PresetsProvider>
       <main className="min-h-screen w-full bg-background font-body text-foreground">
         <div className="container mx-auto flex max-w-4xl flex-col items-center p-4 py-8 sm:p-8 sm:py-12 md:p-12 md:py-16">
           <header className="mb-8 text-center sm:mb-12">
@@ -22,6 +20,5 @@ export default function Home() {
         </div>
         <PreferencesMenu />
       </main>
-    </PresetsProvider>
   );
 }

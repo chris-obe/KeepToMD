@@ -1,9 +1,8 @@
 
 "use client"
 
-import { useState, useEffect, useCallback, createContext, useContext, ReactNode } from 'react';
+import { useState, useEffect, useSyncExternalStore } from 'react';
 import { type NamingOptions, type FormattingOptions } from '@/ai/schemas';
-import { useToast } from '@/hooks/use-toast';
 
 export type Preset = {
   name: string;
@@ -34,128 +33,165 @@ const initialFormattingOptions: FormattingOptions = {
     tagHandling: 'hash',
 };
 
-type PresetsContextType = {
-    presets: Preset[];
-    namingOptions: NamingOptions;
-    setNamingOptions: React.Dispatch<React.SetStateAction<NamingOptions>>;
-    formattingOptions: FormattingOptions;
-    setFormattingOptions: React.Dispatch<React.SetStateAction<FormattingOptions>>;
-    selectedPreset: string;
-    handleSelectPreset: (name: string) => void;
-    handleSavePreset: (presetName: string) => void;
-    handleDeletePreset: (name: string) => void;
+
+type PresetsState = {
+  presets: Preset[];
+  namingOptions: NamingOptions;
+  formattingOptions: FormattingOptions;
+  selectedPreset: string;
 };
 
-const PresetsContext = createContext<PresetsContextType | undefined>(undefined);
+// --- Global state management (reducer pattern without JSX) ---
 
-export const PresetsProvider = ({ children }: { children: ReactNode }) => {
-    const [namingOptions, setNamingOptions] = useState<NamingOptions>(initialNamingOptions);
-    const [formattingOptions, setFormattingOptions] = useState<FormattingOptions>(initialFormattingOptions);
-    const [presets, setPresets] = useState<Preset[]>([]);
-    const [selectedPreset, setSelectedPreset] = useState('');
-    const { toast } = useToast();
+let memoryState: PresetsState = {
+    presets: [],
+    namingOptions: initialNamingOptions,
+    formattingOptions: initialFormattingOptions,
+    selectedPreset: '',
+};
 
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            try {
-                const savedPresets = localStorage.getItem('keepSyncPresets');
-                if (savedPresets) {
-                    setPresets(JSON.parse(savedPresets));
-                }
-                 const savedLastPreset = localStorage.getItem('keepSyncLastPreset');
-                 if(savedLastPreset) {
-                    handleSelectPreset(savedLastPreset);
-                 }
-            } catch (error) {
-                console.error("Failed to load presets from localStorage", error);
+const listeners = new Set<() => void>();
+
+const dispatch = (action: Action) => {
+    memoryState = reducer(memoryState, action);
+    listeners.forEach(listener => listener());
+};
+
+const subscribe = (callback: () => void) => {
+    listeners.add(callback);
+    return () => listeners.delete(callback);
+};
+
+const getSnapshot = () => {
+    return memoryState;
+};
+
+// --- Actions ---
+
+type Action =
+  | { type: 'SET_PRESETS'; payload: Preset[] }
+  | { type: 'SET_NAMING_OPTIONS'; payload: NamingOptions | ((prev: NamingOptions) => NamingOptions) }
+  | { type: 'SET_FORMATTING_OPTIONS'; payload: FormattingOptions | ((prev: FormattingOptions) => FormattingOptions) }
+  | { type: 'SET_SELECTED_PRESET'; payload: string }
+  | { type: 'SAVE_PRESET'; payload: { name: string; options: { naming: NamingOptions; formatting: FormattingOptions } } }
+  | { type: 'DELETE_PRESET'; payload: string }
+  | { type: 'SELECT_PRESET'; payload: string };
+
+const reducer = (state: PresetsState, action: Action): PresetsState => {
+    switch (action.type) {
+        case 'SET_PRESETS':
+            return { ...state, presets: action.payload };
+        case 'SET_NAMING_OPTIONS':
+            const newNamingOptions = typeof action.payload === 'function' ? action.payload(state.namingOptions) : action.payload;
+            return { ...state, namingOptions: newNamingOptions, selectedPreset: '' };
+        case 'SET_FORMATTING_OPTIONS':
+            const newFormattingOptions = typeof action.payload === 'function' ? action.payload(state.formattingOptions) : action.payload;
+            return { ...state, formattingOptions: newFormattingOptions, selectedPreset: '' };
+        case 'SET_SELECTED_PRESET':
+            return { ...state, selectedPreset: action.payload };
+        case 'SAVE_PRESET': {
+            const { name, options } = action.payload;
+            const newPreset = { name, options };
+            const existingIndex = state.presets.findIndex(p => p.name === name);
+            let newPresets;
+            if (existingIndex > -1) {
+                newPresets = [...state.presets];
+                newPresets[existingIndex] = newPreset;
+            } else {
+                newPresets = [...state.presets, newPreset];
             }
-        }
-    }, []);
-
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
             try {
-                localStorage.setItem('keepSyncPresets', JSON.stringify(presets));
+                localStorage.setItem('keepSyncPresets', JSON.stringify(newPresets));
+                localStorage.setItem('keepSyncLastPreset', name);
             } catch (error) {
                 console.error("Failed to save presets to localStorage", error);
             }
+            return { ...state, presets: newPresets, selectedPreset: name };
         }
-    }, [presets]);
-    
-    const handleSavePreset = useCallback((presetName: string) => {
-        const newPreset: Preset = {
-            name: presetName,
-            options: { naming: namingOptions, formatting: formattingOptions }
-        };
-
-        setPresets(currentPresets => {
-            const existingIndex = currentPresets.findIndex(p => p.name === presetName);
-            if (existingIndex > -1) {
-                const updatedPresets = [...currentPresets];
-                updatedPresets[existingIndex] = newPreset;
-                return updatedPresets;
-            } else {
-                return [...currentPresets, newPreset];
+        case 'DELETE_PRESET': {
+            const newPresets = state.presets.filter(p => p.name !== action.payload);
+            try {
+                localStorage.setItem('keepSyncPresets', JSON.stringify(newPresets));
+                if (state.selectedPreset === action.payload) {
+                    localStorage.removeItem('keepSyncLastPreset');
+                    return { ...state, presets: newPresets, selectedPreset: '', namingOptions: initialNamingOptions, formattingOptions: initialFormattingOptions };
+                }
+            } catch (error) {
+                console.error("Failed to save presets to localStorage", error);
             }
-        });
-        setSelectedPreset(newPreset.name);
-        localStorage.setItem('keepSyncLastPreset', newPreset.name);
-    }, [namingOptions, formattingOptions]);
+            return { ...state, presets: newPresets };
+        }
+        case 'SELECT_PRESET': {
+            const name = action.payload;
+            if (name === 'default' || !name) {
+                try {
+                    localStorage.removeItem('keepSyncLastPreset');
+                } catch (error) {
+                    console.error("Failed to update localStorage", error);
+                }
+                return { ...state, selectedPreset: '', namingOptions: initialNamingOptions, formattingOptions: initialFormattingOptions };
+            }
+            const preset = state.presets.find(p => p.name === name);
+            if (preset) {
+                try {
+                    localStorage.setItem('keepSyncLastPreset', name);
+                } catch (error) {
+                    console.error("Failed to update localStorage", error);
+                }
+                return { ...state, selectedPreset: name, namingOptions: preset.options.naming, formattingOptions: preset.options.formatting };
+            }
+            return state; // If preset not found, do nothing
+        }
+        default:
+            return state;
+    }
+};
 
-    const handleSelectPreset = useCallback((name: string) => {
-        if (name === 'default') {
-            setNamingOptions(initialNamingOptions);
-            setFormattingOptions(initialFormattingOptions);
-            setSelectedPreset('');
-            localStorage.removeItem('keepSyncLastPreset');
-            return;
-        }
-        // This logic runs on initial load, so we need to check presets from storage
-        const currentPresets = JSON.parse(localStorage.getItem('keepSyncPresets') || '[]');
-        const preset = currentPresets.find((p: Preset) => p.name === name);
-        
-        if (preset) {
-            setNamingOptions(preset.options.naming);
-            setFormattingOptions(preset.options.formatting);
-            setSelectedPreset(name);
-            localStorage.setItem('keepSyncLastPreset', name);
-            // We don't toast on initial load, only on user interaction. 
-            // The toast logic can be kept in the component that calls this.
-        } else if (name) { // If a preset was saved but doesn't exist, reset
-            handleSelectPreset('default');
-        }
-    }, []);
+// --- Hook ---
 
-    const handleDeletePreset = useCallback((name: string) => {
-        setPresets(presets.filter(p => p.name !== name));
-        if (selectedPreset === name) {
-            handleSelectPreset('default');
-        }
-    }, [presets, selectedPreset]);
-    
-    const contextValue = {
-        presets,
-        namingOptions,
-        setNamingOptions,
-        formattingOptions,
-        setFormattingOptions,
-        selectedPreset,
-        handleSelectPreset,
-        handleSavePreset,
-        handleDeletePreset,
+// On the server, we need to return a static, default snapshot.
+// The client will then hydrate and load the actual state from localStorage.
+const getServerSnapshot = () => {
+    return {
+        presets: [],
+        namingOptions: initialNamingOptions,
+        formattingOptions: initialFormattingOptions,
+        selectedPreset: '',
     };
-    
-    return (
-        <PresetsContext.Provider value={contextValue}>
-            {children}
-        </PresetsContext.Provider>
-    );
 };
 
 export const usePresets = () => {
-    const context = useContext(PresetsContext);
-    if (context === undefined) {
-        throw new Error('usePresets must be used within a PresetsProvider');
-    }
-    return context;
+    const { presets, namingOptions, formattingOptions, selectedPreset } = useSyncExternalStore(
+        subscribe,
+        getSnapshot,
+        getServerSnapshot
+    );
+    
+    // This effect runs only on the client to load data from localStorage
+    useEffect(() => {
+        try {
+            const savedPresets = localStorage.getItem('keepSyncPresets');
+            if (savedPresets) {
+                dispatch({ type: 'SET_PRESETS', payload: JSON.parse(savedPresets) as Preset[] });
+            }
+            const savedLastPreset = localStorage.getItem('keepSyncLastPreset');
+            if (savedLastPreset) {
+                dispatch({ type: 'SELECT_PRESET', payload: savedLastPreset });
+            }
+        } catch (error) {
+            console.error("Failed to load presets from localStorage", error);
+        }
+    }, []);
+    
+    return {
+        presets,
+        namingOptions,
+        setNamingOptions: (value: NamingOptions | ((prev: NamingOptions) => NamingOptions)) => dispatch({ type: 'SET_NAMING_OPTIONS', payload: value }),
+        formattingOptions,
+        setFormattingOptions: (value: FormattingOptions | ((prev: FormattingOptions) => FormattingOptions)) => dispatch({ type: 'SET_FORMATTING_OPTIONS', payload: value }),
+        selectedPreset,
+        handleSelectPreset: (name: string) => dispatch({ type: 'SELECT_PRESET', payload: name }),
+        handleSavePreset: (name: string) => dispatch({ type: 'SAVE_PRESET', payload: { name, options: { naming: memoryState.namingOptions, formatting: memoryState.formattingOptions } } }),
+        handleDeletePreset: (name: string) => dispatch({ type: 'DELETE_PRESET', payload: name }),
+    };
 };
