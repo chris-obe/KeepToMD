@@ -12,7 +12,7 @@ export default function Home() {
           </h1>
           <p className="mt-4 max-w-2xl text-base text-muted-foreground sm:text-lg">
             Convert your Google Keep notes to Obsidian-compatible Markdown.
-            Upload your Google Takeout folder and let us handle the rest.
+            Select your Google Takeout folder and let us handle the rest.
           </p>
         </header>
         <FileProcessingArea />
