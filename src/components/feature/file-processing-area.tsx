@@ -260,6 +260,7 @@ export function FileProcessingArea() {
   const [assetFiles, setAssetFiles] = useState<File[]>([]);
   const [firstNoteTitle, setFirstNoteTitle] = useState<string>('My Note Title');
   const [filenamePreview, setFilenamePreview] = useState<string>('');
+  const [presetNameToSave, setPresetNameToSave] = useState('');
 
   const {
     presets,
@@ -269,6 +270,7 @@ export function FileProcessingArea() {
     setFormattingOptions,
     selectedPreset,
     handleSelectPreset,
+    handleSavePreset,
     handleDeletePreset
   } = usePresets();
 
@@ -674,6 +676,16 @@ export function FileProcessingArea() {
     setNamingOptions(p => ({...p, bodyUnit: value, bodyLength: newLength}));
   }
 
+  const onSavePreset = () => {
+    if (!presetNameToSave) {
+      toast({ variant: 'destructive', title: 'Preset name cannot be empty.' });
+      return;
+    }
+    handleSavePreset(presetNameToSave);
+    toast({ title: 'Preset Saved', description: `Preset "${presetNameToSave}" has been saved.` });
+    setPresetNameToSave('');
+  };
+
   return (
     <div className="w-full max-w-4xl animate-in fade-in-50 duration-500">
       <input
@@ -1027,6 +1039,19 @@ export function FileProcessingArea() {
                         </RadioGroup>
                     </div>
                     <Separator />
+                    <div className="space-y-2">
+                      <Label htmlFor="preset-name-save">Save Current Settings as Preset</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="preset-name-save"
+                          placeholder="My Awesome Preset"
+                          value={presetNameToSave}
+                          onChange={(e) => setPresetNameToSave(e.target.value)}
+                        />
+                        <Button onClick={onSavePreset}><Save className="mr-2 h-4 w-4" /> Save</Button>
+                      </div>
+                    </div>
+                    <Separator />
                      <Dialog>
                         <DialogTrigger asChild>
                             <Button id="preview-dialog-trigger" className="w-full" onClick={handlePreviewClick} disabled={isLoading || htmlFiles.length === 0}>
@@ -1133,3 +1158,5 @@ export function FileProcessingArea() {
     </div>
   );
 }
+
+    
