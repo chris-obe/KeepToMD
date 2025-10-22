@@ -1,7 +1,4 @@
 
-
-
-
 "use client";
 
 import { useState, useRef, type ChangeEvent, useEffect } from 'react';
@@ -1106,7 +1103,7 @@ export function FileProcessingArea() {
           </AccordionTrigger>
           <AccordionContent className="px-6 pt-4 pb-6">
              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                <Button size="lg" variant="secondary" className="w-full sm:w-auto" onClick={() => startConversion(htmlFiles, false)} disabled={isLoading || htmlFiles.length === 0}>
+                <Button size="lg" variant="secondary" className="w-full" onClick={() => startConversion(htmlFiles, false)} disabled={isLoading || htmlFiles.length === 0}>
                     {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Download className="mr-2 h-5 w-5" />}
                     {isLoading ? 'Processing...' : 'Convert & Download .zip'}
                 </Button>
@@ -1151,5 +1148,4 @@ export function FileProcessingArea() {
     </div>
   );
 }
-
     
