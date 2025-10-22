@@ -23,6 +23,7 @@ import {
   Trash2,
   History,
   AlertTriangle,
+  FileSignature,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -798,7 +799,8 @@ export function FileProcessingArea() {
             <Card className="bg-background/50">
                 <CardHeader>
                     <CardTitle className="flex items-center text-base">
-                        File Naming Convention
+                        <FileSignature className="mr-2 h-5 w-5 text-yellow-400" />
+                        File Name Configuration
                         <div className="flex-grow" />
                         <InfoTooltip>Configure how your output files will be named.</InfoTooltip>
                     </CardTitle>
@@ -1158,5 +1160,3 @@ export function FileProcessingArea() {
     </div>
   );
 }
-
-    
