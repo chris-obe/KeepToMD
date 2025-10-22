@@ -645,7 +645,7 @@ export function FileProcessingArea() {
   
       let preview = parts.join(' - ').replace(/\s+/g, ' ').trim();
       if (!preview) {
-          preview = "Untitled"
+          preview = namingOptions.fillerText || "Untitled";
       }
   
       setFilenamePreview(preview + '.md');
@@ -775,52 +775,52 @@ export function FileProcessingArea() {
             <span>Process</span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-6 space-y-6">
+        <CardContent className="p-6">
            <Accordion type="multiple" defaultValue={['item-1', 'item-2']} className="w-full space-y-4">
             <Card className="bg-background/50 overflow-hidden">
                 <AccordionItem value="item-1" className="border-b-0">
-                    <AccordionTrigger className="px-6 py-4 text-base font-semibold hover:no-underline [&[data-state=open]>svg]:-rotate-180">
-                        <div className="flex items-center gap-2">
-                           <FileSignature className="h-5 w-5 text-yellow-400" />
-                            File Name Configuration
-                        </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="px-6 pb-6 space-y-6">
-                        <div className="space-y-2">
-                          <Label>Load Naming Preset</Label>
-                          <div className="flex gap-2">
-                            <Select onValueChange={handleSelectNamingPreset} value={selectedNamingPreset}>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select a preset..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="default">Default Settings</SelectItem>
-                                <Separator className="my-1" />
-                                {namingPresets.map(p => (
-                                  <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            {selectedNamingPreset && selectedNamingPreset !== 'default' && (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button variant="destructive" size="icon" onClick={() => handleDeleteNamingPreset(selectedNamingPreset)}>
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Delete '{selectedNamingPreset}' preset</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            )}
+                    <div className="px-6 py-4 space-y-4">
+                      <AccordionTrigger className="text-base font-semibold hover:no-underline [&[data-state=open]>svg]:-rotate-180 p-0">
+                          <div className="flex items-center gap-2">
+                             <FileSignature className="h-5 w-5 text-yellow-400" />
+                              File Name Configuration
                           </div>
+                      </AccordionTrigger>
+                      <div className="space-y-2">
+                        <Label>Load Naming Preset</Label>
+                        <div className="flex gap-2">
+                          <Select onValueChange={handleSelectNamingPreset} value={selectedNamingPreset}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a preset..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="default">Default Settings</SelectItem>
+                              <Separator className="my-1" />
+                              {namingPresets.map(p => (
+                                <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {selectedNamingPreset && selectedNamingPreset !== 'default' && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="destructive" size="icon" onClick={() => handleDeleteNamingPreset(selectedNamingPreset)}>
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Delete '{selectedNamingPreset}' preset</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                         </div>
-
+                      </div>
+                    </div>
+                    <AccordionContent className="px-6 pb-6 pt-0 space-y-6">
                         <Separator />
-
-                        <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
+                        <div className="flex flex-wrap items-center gap-x-6 gap-y-4 pt-6">
                             <div className="flex items-center space-x-2">
                                 <Checkbox id="title" checked={namingOptions.useTitle} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useTitle: !!checked }))} />
                                 <Label htmlFor="title">Use note title</Label>
@@ -1040,33 +1040,37 @@ export function FileProcessingArea() {
 
             <Card className="bg-background/50 overflow-hidden">
                 <AccordionItem value="item-2" className="border-b-0">
-                    <AccordionTrigger className="px-6 py-4 text-base font-semibold hover:no-underline [&[data-state=open]>svg]:-rotate-180">
-                        <div className="flex items-center gap-2">
-                            <FileText className="mr-2 h-5 w-5 text-purple-400" />
-                            Markdown Formatting
-                        </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="px-6 pb-6 space-y-6">
-                        <div className="space-y-2">
-                            <Label>Load Markdown Preset</Label>
-                            <div className="flex gap-2">
-                                <Select onValueChange={handleSelectMarkdownPreset} value={selectedMarkdownPreset}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select a preset..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="default">Default Settings</SelectItem>
-                                    <Separator className="my-1" />
-                                    {markdownPresets.map(p => (
-                                    <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                                </Select>
-                                <Button variant="outline" onClick={handlePreviewClick}>
-                                    <Eye className="h-4 w-4" />
-                                </Button>
-                            </div>
-                        </div>
+                    <div className="px-6 py-4 space-y-4">
+                      <AccordionTrigger className="text-base font-semibold hover:no-underline [&[data-state=open]>svg]:-rotate-180 p-0">
+                          <div className="flex items-center gap-2">
+                              <FileText className="mr-2 h-5 w-5 text-purple-400" />
+                              Markdown Formatting
+                          </div>
+                      </AccordionTrigger>
+                      <div className="space-y-2">
+                          <Label>Load Markdown Preset</Label>
+                          <div className="flex gap-2">
+                              <Select onValueChange={handleSelectMarkdownPreset} value={selectedMarkdownPreset}>
+                              <SelectTrigger>
+                                  <SelectValue placeholder="Select a preset..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                  <SelectItem value="default">Default Settings</SelectItem>
+                                  <Separator className="my-1" />
+                                  {markdownPresets.map(p => (
+                                  <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
+                                  ))}
+                              </SelectContent>
+                              </Select>
+                              <Button variant="outline" onClick={handlePreviewClick}>
+                                  <Eye className="h-4 w-4" />
+                              </Button>
+                          </div>
+                      </div>
+                    </div>
+
+                    <AccordionContent className="px-6 pb-6 pt-0 space-y-6">
+                        <Separator className="mb-6"/>
                         <div className="space-y-2">
                             <Label className="font-semibold flex items-center">Tag handling <span className="ml-2 text-sm font-normal text-muted-foreground">relevant for Obsidian Graphs</span><InfoTooltip>Choose how to represent Google Keep tags in Obsidian.</InfoTooltip></Label>
                             <RadioGroup value={formattingOptions.tagHandling} onValueChange={(value) => setFormattingOptions(prev => ({...prev, tagHandling: value as 'links' | 'hash' | 'atlinks'}))} className="flex flex-wrap gap-4 pt-2">
@@ -1087,8 +1091,8 @@ export function FileProcessingArea() {
                     </AccordionContent>
                 </AccordionItem>
             </Card>
-
-            <Separator />
+           </Accordion>
+           <Separator />
             <div className="space-y-2">
               <Label htmlFor="preset-name-save">Save Current Naming Settings as Preset</Label>
               <div className="flex gap-2">
@@ -1161,7 +1165,6 @@ export function FileProcessingArea() {
                     </div>
                 </DialogContent>
               </Dialog>
-           </Accordion>
         </CardContent>
       </Card>
 
