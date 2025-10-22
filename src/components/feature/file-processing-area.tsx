@@ -560,11 +560,6 @@ export function FileProcessingArea() {
     if (typeof window === 'undefined') return;
 
     const getFilenamePreview = () => {
-      if (!htmlFiles.length) {
-        setFilenamePreview('');
-        return;
-      }
-
       const parts: string[] = [];
       const now = new Date();
       const emojiPart = namingOptions.useEmoji ? namingOptions.selectedEmoji : '';
@@ -599,19 +594,16 @@ export function FileProcessingArea() {
                   break;
           }
           titlePart = bodySnippet || "Untitled";
-      } else if (namingOptions.useTitle) {
-        // Show title
-      } else if (namingOptions.useBody) {
-        titlePart = `${firstNoteTitle} (or first ${namingOptions.bodyLength} ${namingOptions.bodyUnit} of body)`;
-      } else {
+      } else if (!namingOptions.useTitle && !htmlFiles.length) {
           titlePart = "Untitled";
       }
-
-      if (namingOptions.useEmoji && namingOptions.emojiPosition === 'afterTitle') {
-        titlePart = `${titlePart} ${emojiPart}`;
-      }
       
-      if (titlePart) parts.push(titlePart);
+      if (titlePart) {
+        if (namingOptions.useEmoji && namingOptions.emojiPosition === 'afterTitle') {
+          titlePart = `${titlePart} ${emojiPart}`;
+        }
+        parts.push(titlePart);
+      }
       
       if (dateTimePart && namingOptions.datePosition === 'append') {
           if (namingOptions.useEmoji && namingOptions.emojiPosition === 'beforeDate') {
