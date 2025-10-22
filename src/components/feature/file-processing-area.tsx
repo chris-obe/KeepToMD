@@ -570,12 +570,12 @@ export function FileProcessingArea() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
+  
     const getFilenamePreview = () => {
       const parts: string[] = [];
       const now = new Date();
       const emojiPart = namingOptions.useEmoji ? namingOptions.selectedEmoji : '';
-
+  
       const datePart = namingOptions.useDate ? format(now, namingOptions.dateFormat) : '';
       const timePart = namingOptions.useTime ? format(now, namingOptions.timeFormat) : '';
       let dateTimePart = [datePart, timePart].filter(Boolean).join('_');
@@ -584,39 +584,39 @@ export function FileProcessingArea() {
       if (!namingOptions.useDate) {
         effectiveEmojiPosition = 'afterTitle';
       }
-
+  
       if (dateTimePart && namingOptions.datePosition === 'prepend') {
-          if (namingOptions.useEmoji && effectiveEmojiPosition === 'beforeDate') {
-            dateTimePart = `${emojiPart} ${dateTimePart}`;
-          }
-           if (namingOptions.useEmoji && effectiveEmojiPosition === 'afterDate') {
-            dateTimePart = `${dateTimePart} ${emojiPart}`;
-          }
-          parts.push(dateTimePart);
+        if (namingOptions.useEmoji && effectiveEmojiPosition === 'beforeDate') {
+          dateTimePart = `${emojiPart} ${dateTimePart}`;
+        }
+        if (namingOptions.useEmoji && effectiveEmojiPosition === 'afterDate') {
+          dateTimePart = `${dateTimePart} ${emojiPart}`;
+        }
+        parts.push(dateTimePart);
       }
   
       let titlePart = '';
-      if (namingOptions.useTitle && htmlFiles.length > 0) {
-          titlePart = firstNoteTitle;
-      } else if (namingOptions.useBody && htmlFiles.length > 0) { // Simplified for preview
-          const bodyContent = "This is the beginning of the note content and it can be quite long.";
-          let bodySnippet = "";
-          switch (namingOptions.bodyUnit) {
-              case 'characters':
-                  bodySnippet = bodyContent.substring(0, namingOptions.bodyLength);
-                  break;
-              case 'words':
-                  bodySnippet = bodyContent.split(/\s+/).slice(0, namingOptions.bodyLength).join(' ');
-                  break;
-              case 'lines':
-                  bodySnippet = bodyContent.split('\n').slice(0, namingOptions.bodyLength).join(' ');
-                  break;
-          }
-          titlePart = bodySnippet;
+      if (namingOptions.useTitle) {
+        titlePart = firstNoteTitle;
+      } else if (namingOptions.useBody) {
+        const bodyContent = "This is the beginning of the note content and it can be quite long.";
+        let bodySnippet = "";
+        switch (namingOptions.bodyUnit) {
+          case 'characters':
+            bodySnippet = bodyContent.substring(0, namingOptions.bodyLength);
+            break;
+          case 'words':
+            bodySnippet = bodyContent.split(/\s+/).slice(0, namingOptions.bodyLength).join(' ');
+            break;
+          case 'lines':
+            bodySnippet = bodyContent.split('\n').slice(0, namingOptions.bodyLength).join(' ');
+            break;
+        }
+        titlePart = bodySnippet;
       }
       
       if (!titlePart) {
-          titlePart = namingOptions.fillerText || (htmlFiles.length > 0 ? "Untitled" : "My Note Title");
+        titlePart = namingOptions.fillerText || "My Note Title";
       }
       
       if (titlePart) {
@@ -627,32 +627,33 @@ export function FileProcessingArea() {
       }
       
       if (dateTimePart && namingOptions.datePosition === 'append') {
-          if (namingOptions.useEmoji && effectiveEmojiPosition === 'beforeDate') {
-            dateTimePart = `${emojiPart} ${emojiPart}`;
-          }
-           if (namingOptions.useEmoji && effectiveEmojiPosition === 'afterDate') {
-            dateTimePart = `${dateTimePart} ${emojiPart}`;
-          }
-          parts.push(dateTimePart);
+        if (namingOptions.useEmoji && effectiveEmojiPosition === 'beforeDate') {
+          dateTimePart = `${emojiPart} ${emojiPart}`;
+        }
+        if (namingOptions.useEmoji && effectiveEmojiPosition === 'afterDate') {
+          dateTimePart = `${dateTimePart} ${emojiPart}`;
+        }
+        parts.push(dateTimePart);
       }
       
       if (namingOptions.useSerial && namingOptions.useDate) {
-          let serial = '1';
-          if (namingOptions.serialPadding === '01') serial = '01';
-          if (namingOptions.serialPadding === '001') serial = '001';
-          if (namingOptions.serialPadding === '0001') serial = '0001';
-          parts.push(serial);
+        let serial = '1';
+        if (namingOptions.serialPadding === '01') serial = '01';
+        if (namingOptions.serialPadding === '001') serial = '001';
+        if (namingOptions.serialPadding === '0001') serial = '0001';
+        parts.push(serial);
       }
   
       let preview = parts.join(' - ').replace(/\s+/g, ' ').trim();
       if (!preview) {
-          preview = namingOptions.fillerText || "Untitled";
+        preview = namingOptions.fillerText || "Untitled";
       }
   
       setFilenamePreview(preview + '.md');
-    }
+    };
+  
     getFilenamePreview();
-  }, [namingOptions, firstNoteTitle, htmlFiles.length]);
+  }, [namingOptions, firstNoteTitle]);
 
 
   const handlePreviewClick = async () => {
@@ -820,7 +821,6 @@ export function FileProcessingArea() {
                       </div>
                     </div>
                     <AccordionContent className="px-6 pb-6 pt-0 space-y-4">
-                        <Separator />
                         <div className="flex flex-wrap items-center gap-x-6 gap-y-4 pt-4">
                             <div className="flex items-center space-x-2">
                                 <Checkbox id="title" checked={namingOptions.useTitle} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useTitle: !!checked }))} />
@@ -926,9 +926,7 @@ export function FileProcessingArea() {
                             </div>
                         )}
                         
-                        <Separator />
-
-                        <div className="space-y-4 pt-4">
+                        <div className="space-y-4 pt-4 border-t">
                           <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
                               <div className="flex items-center gap-2">
                                   <Checkbox id="date" checked={namingOptions.useDate} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useDate: !!checked, useSerial: checked ? prev.useSerial : false }))} />
@@ -1039,7 +1037,7 @@ export function FileProcessingArea() {
                 </AccordionItem>
             </Card>
 
-            <Card className="bg-background/50 overflow-hidden mt-4">
+            <Card className="bg-background/50 overflow-hidden">
                 <AccordionItem value="item-2" className="border-b-0">
                     <div className="px-6 py-4 space-y-4">
                       <AccordionTrigger className="text-base font-semibold hover:no-underline [&[data-state=open]>svg]:-rotate-180 p-0">
@@ -1222,6 +1220,8 @@ export function FileProcessingArea() {
     </div>
   );
 }
+    
+
     
 
     
