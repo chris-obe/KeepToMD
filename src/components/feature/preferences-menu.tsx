@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { History, Settings, Moon, Sun, Library } from 'lucide-react';
+import { History, Settings, Moon, Sun, Library, Type } from 'lucide-react';
 import { HistoryDisplay } from './history-display';
 import { useTheme } from 'next-themes';
 import { PresetManager } from './preset-manager';
@@ -34,9 +34,16 @@ export function PreferencesMenu() {
       action: 'history',
     },
     {
-      label: 'Presets',
+      label: 'Naming Presets',
       icon: Library,
-      action: 'presets',
+      action: 'namingPresets',
+      type: 'naming' as const,
+    },
+    {
+        label: 'Markdown Presets',
+        icon: Type,
+        action: 'markdownPresets',
+        type: 'markdown' as const,
     },
     {
       label: theme === 'dark' ? 'Light Mode' : 'Dark Mode',
@@ -66,8 +73,8 @@ export function PreferencesMenu() {
 
     if (item.action === 'history') {
       content = <HistoryDisplay>{button}</HistoryDisplay>;
-    } else if (item.action === 'presets') {
-      content = <PresetManager>{button}</PresetManager>;
+    } else if (item.action === 'namingPresets' || item.action === 'markdownPresets') {
+      content = <PresetManager type={item.type}>{button}</PresetManager>;
     }
 
     return (
@@ -125,3 +132,5 @@ export function PreferencesMenu() {
     </div>
   );
 }
+
+    

@@ -270,15 +270,18 @@ export function FileProcessingArea() {
   const [presetNameToSave, setPresetNameToSave] = useState('');
 
   const {
-    presets,
+    namingPresets,
+    handleSelectNamingPreset,
+    handleSaveNamingPreset,
+    handleDeleteNamingPreset,
+    selectedNamingPreset,
     namingOptions,
     setNamingOptions,
+    markdownPresets,
+    handleSelectMarkdownPreset,
+    selectedMarkdownPreset,
     formattingOptions,
     setFormattingOptions,
-    selectedPreset,
-    handleSelectPreset,
-    handleSavePreset,
-    handleDeletePreset
   } = usePresets();
 
   const [convertedFiles, setConvertedFiles] = useState<ConvertToMarkdownOutput['convertedFiles']>([]);
@@ -691,7 +694,7 @@ export function FileProcessingArea() {
       toast({ variant: 'destructive', title: 'Preset name cannot be empty.' });
       return;
     }
-    handleSavePreset(presetNameToSave);
+    handleSaveNamingPreset(presetNameToSave);
     toast({ title: 'Preset Saved', description: `Preset "${presetNameToSave}" has been saved.` });
     setPresetNameToSave('');
   };
@@ -775,30 +778,30 @@ export function FileProcessingArea() {
           </AccordionTrigger>
           <AccordionContent className="px-6 pt-4 pb-6 space-y-6">
             <div className="space-y-2">
-              <Label>Load Preset</Label>
+              <Label>Load Naming Preset</Label>
               <div className="flex gap-2">
-                <Select onValueChange={handleSelectPreset} value={selectedPreset}>
+                <Select onValueChange={handleSelectNamingPreset} value={selectedNamingPreset}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a preset..." />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="default">Default Settings</SelectItem>
                     <Separator className="my-1" />
-                    {presets.map(p => (
+                    {namingPresets.map(p => (
                       <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {selectedPreset && selectedPreset !== 'default' && (
+                {selectedNamingPreset && selectedNamingPreset !== 'default' && (
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="destructive" size="icon" onClick={() => handleDeletePreset(selectedPreset)}>
+                        <Button variant="destructive" size="icon" onClick={() => handleDeleteNamingPreset(selectedNamingPreset)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Delete '{selectedPreset}' preset</p>
+                        <p>Delete '{selectedNamingPreset}' preset</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -922,7 +925,7 @@ export function FileProcessingArea() {
                     
                     <Separator />
 
-                     <div className="flex flex-wrap gap-x-6 gap-y-4">
+                     <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
                         <div className="flex items-center gap-2">
                             <Checkbox id="date" checked={namingOptions.useDate} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useDate: !!checked, useSerial: checked ? prev.useSerial : false }))} />
                             <Label htmlFor="date" className="flex items-center gap-1"><CalendarDays className="h-4 w-4" /> Add date</Label>
@@ -1041,6 +1044,26 @@ export function FileProcessingArea() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4 pt-6">
+                    <div className="space-y-2">
+                        <Label>Load Markdown Preset</Label>
+                        <div className="flex gap-2">
+                            <Select onValueChange={handleSelectMarkdownPreset} value={selectedMarkdownPreset}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select a preset..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="default">Default Settings</SelectItem>
+                                <Separator className="my-1" />
+                                {markdownPresets.map(p => (
+                                <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                            </Select>
+                            <Button variant="outline" onClick={handlePreviewClick}>
+                                <Eye className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </div>
                      <div className="space-y-2">
                         <Label className="font-semibold flex items-center">Tag handling <span className="ml-2 text-sm font-normal text-muted-foreground">relevant for Obsidian Graphs</span><InfoTooltip>Choose how to represent Google Keep tags in Obsidian.</InfoTooltip></Label>
                         <RadioGroup value={formattingOptions.tagHandling} onValueChange={(value) => setFormattingOptions(prev => ({...prev, tagHandling: value as 'links' | 'hash' | 'atlinks'}))} className="flex flex-wrap gap-x-4 gap-y-2 pt-2">
@@ -1060,11 +1083,11 @@ export function FileProcessingArea() {
                     </div>
                     <Separator />
                     <div className="space-y-2">
-                      <Label htmlFor="preset-name-save">Save Current Settings as Preset</Label>
+                      <Label htmlFor="preset-name-save">Save Current Naming Settings as Preset</Label>
                       <div className="flex gap-2">
                         <Input
                           id="preset-name-save"
-                          placeholder="My Awesome Preset"
+                          placeholder="My Awesome Naming Preset"
                           value={presetNameToSave}
                           onChange={(e) => setPresetNameToSave(e.target.value)}
                         />
@@ -1076,14 +1099,29 @@ export function FileProcessingArea() {
                         <DialogTrigger asChild>
                             <Button id="preview-dialog-trigger" className="w-full" onClick={handlePreviewClick} disabled={isLoading || htmlFiles.length === 0}>
                                 {isLoading && convertedFiles.length === 0 ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Eye className="mr-2 h-5 w-5" />}
-                                {isLoading && convertedFiles.length === 0 ? 'Processing...' : 'Preview Markdown'}
+                                {isLoading && convertedFiles.length === 0 ? 'Processing...' : 'Preview All Options'}
                             </Button>
                         </DialogTrigger>
                         <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
                             <DialogHeader>
                                 <DialogTitle>Conversion Preview</DialogTitle>
+                                <div className="space-y-2 pt-2">
+                                    <Label>Markdown Preset</Label>
+                                    <Select onValueChange={handleSelectMarkdownPreset} value={selectedMarkdownPreset}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select a preset to preview..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="default">Default Settings</SelectItem>
+                                        <Separator className="my-1" />
+                                        {markdownPresets.map(p => (
+                                        <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                    </Select>
+                                </div>
                             </DialogHeader>
-                            <div className="flex-grow grid grid-cols-3 gap-4 overflow-hidden">
+                            <div className="flex-grow grid grid-cols-3 gap-4 overflow-hidden pt-4">
                                 <ScrollArea className="col-span-1 border rounded-lg">
                                     <div className="p-4">
                                     {convertedFiles.map((file, index) => (

@@ -25,12 +25,34 @@ import { Label } from '../ui/label';
 
 export function PresetManager({
   children,
+  type
 }: {
   children?: React.ReactNode;
+  type: 'naming' | 'markdown';
 }) {
-  const { presets, selectedPreset, handleSelectPreset, handleSavePreset, handleDeletePreset } = usePresets();
+    const { 
+        namingPresets, 
+        selectedNamingPreset, 
+        handleSelectNamingPreset, 
+        handleSaveNamingPreset, 
+        handleDeleteNamingPreset,
+        markdownPresets,
+        selectedMarkdownPreset,
+        handleSelectMarkdownPreset,
+        handleSaveMarkdownPreset,
+        handleDeleteMarkdownPreset,
+    } = usePresets();
+
   const [presetName, setPresetName] = useState('');
   const { toast } = useToast();
+
+  const isNaming = type === 'naming';
+
+  const presets = isNaming ? namingPresets : markdownPresets;
+  const selectedPreset = isNaming ? selectedNamingPreset : selectedMarkdownPreset;
+  const handleSavePreset = isNaming ? handleSaveNamingPreset : handleSaveMarkdownPreset;
+  const handleDeletePreset = isNaming ? handleDeleteNamingPreset : handleDeleteMarkdownPreset;
+  const handleSelectPreset = isNaming ? handleSelectNamingPreset : handleSelectMarkdownPreset;
 
   const onSave = () => {
     if (!presetName) {
@@ -47,6 +69,10 @@ export function PresetManager({
     toast({ title: 'Preset Deleted', description: `Preset "${name}" has been deleted.` });
   };
 
+  const title = isNaming ? 'Manage Naming Presets' : 'Manage Markdown Presets';
+  const placeholder = isNaming ? 'My Awesome Naming Preset' : 'My Awesome Markdown Preset';
+
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -54,7 +80,7 @@ export function PresetManager({
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Manage Presets</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4">
@@ -63,7 +89,7 @@ export function PresetManager({
             <div className="flex gap-2">
               <Input
                 id="preset-name-save"
-                placeholder="My Awesome Preset"
+                placeholder={placeholder}
                 value={presetName}
                 onChange={(e) => setPresetName(e.target.value)}
               />
@@ -111,3 +137,5 @@ export function PresetManager({
     </Dialog>
   );
 }
+
+    
