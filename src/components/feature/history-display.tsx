@@ -75,21 +75,21 @@ export function HistoryDisplay() {
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            Run History
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={handleClearHistory} disabled={runHistory.length === 0}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Clear all history</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle>Run History</DialogTitle>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" onClick={handleClearHistory} disabled={runHistory.length === 0}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Clear all history</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
         </DialogHeader>
         <div className="flex items-start gap-2 rounded-lg bg-background/50 p-3 text-sm text-muted-foreground border">
           <ShieldCheck className="h-5 w-5 shrink-0 text-accent" />
