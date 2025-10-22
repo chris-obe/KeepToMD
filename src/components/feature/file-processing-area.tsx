@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   ChevronRight,
   FileArchive,
+  Smile,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -136,8 +137,25 @@ function createFilename(data: ReturnType<typeof parseKeepHtml>, options: NamingO
   const parts: string[] = [];
   const now = new Date();
   
-  let titlePart = '';
+  const emojiPart = options.useEmoji ? options.selectedEmoji : '';
 
+  const datePart = options.useDate ? format(data.creationTime, options.dateFormat) : '';
+  const timePart = options.useTime ? format(now, options.timeFormat) : '';
+  let dateTimePart = [datePart, timePart].filter(Boolean).join('_');
+  
+  if (dateTimePart) {
+      if (options.datePosition === 'prepend') {
+          if (options.useEmoji && options.emojiPosition === 'beforeDate') {
+              dateTimePart = `${emojiPart} ${dateTimePart}`;
+          }
+          if (options.useEmoji && options.emojiPosition === 'afterDate') {
+              dateTimePart = `${dateTimePart} ${emojiPart}`;
+          }
+          parts.unshift(dateTimePart);
+      }
+  }
+
+  let titlePart = '';
   if (options.useTitle && data.title) {
     titlePart = data.title;
   } else if (options.useBody) {
@@ -159,19 +177,18 @@ function createFilename(data: ReturnType<typeof parseKeepHtml>, options: NamingO
 
   titlePart = titlePart.replace(/[\\/]/g, '-'); // Sanitize
 
-  const datePart = options.useDate ? format(data.creationTime, options.dateFormat) : '';
-  const timePart = options.useTime ? format(now, options.timeFormat) : '';
-  const dateTimePart = [datePart, timePart].filter(Boolean).join('_');
-  
-  if (dateTimePart) {
-      if (options.datePosition === 'prepend') {
-          parts.unshift(dateTimePart);
-      }
+  if (options.useEmoji && options.emojiPosition === 'afterTitle') {
+      titlePart = `${titlePart} ${emojiPart}`;
   }
-
   parts.push(titlePart);
 
   if (dateTimePart && options.datePosition === 'append') {
+      if (options.useEmoji && options.emojiPosition === 'beforeDate') {
+          dateTimePart = `${emojiPart} ${dateTimePart}`;
+      }
+      if (options.useEmoji && options.emojiPosition === 'afterDate') {
+          dateTimePart = `${dateTimePart} ${emojiPart}`;
+      }
       parts.push(dateTimePart);
   }
 
@@ -217,9 +234,12 @@ export function FileProcessingArea() {
     dateFormat: 'yyyy-MM-dd',
     useTime: false,
     timeFormat: 'HH-mm-ss',
-    useSerial: false,
     datePosition: 'prepend',
+    useSerial: false,
     serialPadding: '1',
+    useEmoji: false,
+    selectedEmoji: '💡',
+    emojiPosition: 'beforeDate',
   });
   const [formattingOptions, setFormattingOptions] = useState<FormattingOptions>({
     tagHandling: 'hash',
@@ -440,11 +460,19 @@ export function FileProcessingArea() {
 
       const parts: string[] = [];
       const now = new Date();
+      const emojiPart = namingOptions.useEmoji ? namingOptions.selectedEmoji : '';
+
       const datePart = namingOptions.useDate ? format(now, namingOptions.dateFormat) : '';
       const timePart = namingOptions.useTime ? format(now, namingOptions.timeFormat) : '';
-      const dateTimePart = [datePart, timePart].filter(Boolean).join('_');
+      let dateTimePart = [datePart, timePart].filter(Boolean).join('_');
   
-      if (namingOptions.datePosition === 'prepend' && dateTimePart) {
+      if (dateTimePart && namingOptions.datePosition === 'prepend') {
+          if (namingOptions.useEmoji && namingOptions.emojiPosition === 'beforeDate') {
+            dateTimePart = `${emojiPart} ${dateTimePart}`;
+          }
+           if (namingOptions.useEmoji && namingOptions.emojiPosition === 'afterDate') {
+            dateTimePart = `${dateTimePart} ${emojiPart}`;
+          }
           parts.push(dateTimePart);
       }
   
@@ -471,10 +499,20 @@ export function FileProcessingArea() {
       } else {
           titlePart = "Untitled";
       }
+
+      if (namingOptions.useEmoji && namingOptions.emojiPosition === 'afterTitle') {
+        titlePart = `${titlePart} ${emojiPart}`;
+      }
       
       if (titlePart) parts.push(titlePart);
       
-      if (namingOptions.datePosition === 'append' && dateTimePart) {
+      if (dateTimePart && namingOptions.datePosition === 'append') {
+          if (namingOptions.useEmoji && namingOptions.emojiPosition === 'beforeDate') {
+            dateTimePart = `${emojiPart} ${dateTimePart}`;
+          }
+           if (namingOptions.useEmoji && namingOptions.emojiPosition === 'afterDate') {
+            dateTimePart = `${dateTimePart} ${emojiPart}`;
+          }
           parts.push(dateTimePart);
       }
       
@@ -741,6 +779,58 @@ export function FileProcessingArea() {
                     </>
                     )}
 
+                    <div className="space-y-4">
+                        <div className="flex items-center space-x-2">
+                            <Checkbox id="emoji" checked={namingOptions.useEmoji} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useEmoji: !!checked }))} />
+                            <Label htmlFor="emoji">Add emoji</Label>
+                        </div>
+                    </div>
+
+                    {namingOptions.useEmoji && (
+                        <div className="space-y-4 pt-4 border-t border-border pl-6">
+                            <div className="space-y-2">
+                                <Label className="font-semibold">Emoji</Label>
+                                <RadioGroup value={namingOptions.selectedEmoji} onValueChange={(value) => setNamingOptions(p => ({...p, selectedEmoji: value}))} className="grid grid-cols-3 gap-2 mt-2">
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="🟡" id="e-1" />
+                                        <Label htmlFor="e-1">🟡</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="💡" id="e-2" />
+                                        <Label htmlFor="e-2">💡</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="✨" id="e-3" />
+                                        <Label htmlFor="e-3">✨</Label>
+                                    </div>
+                                </RadioGroup>
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="font-semibold">Emoji position</Label>
+                                <RadioGroup 
+                                    value={namingOptions.emojiPosition} 
+                                    onValueChange={(value: 'beforeDate' | 'afterDate' | 'afterTitle') => setNamingOptions(prev => ({ ...prev, emojiPosition: value }))} 
+                                    className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2"
+                                >
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="beforeDate" id="ep-1" />
+                                        <Label htmlFor="ep-1">Before date</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="afterDate" id="ep-2" />
+                                        <Label htmlFor="ep-2">After date</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="afterTitle" id="ep-3" />
+                                        <Label htmlFor="ep-3">After title</Label>
+                                    </div>
+                                </RadioGroup>
+                            </div>
+                        </div>
+                    )}
+
+                    <Separator />
+
 
                     <div className="bg-secondary p-3 rounded-md text-sm text-muted-foreground flex items-center gap-2">
                         <Eye className="h-4 w-4 text-primary shrink-0"/>
@@ -883,5 +973,3 @@ export function FileProcessingArea() {
     </div>
   );
 }
-
-    

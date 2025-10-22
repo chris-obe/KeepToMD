@@ -10,9 +10,12 @@ export const NamingOptionsSchema = z.object({
   dateFormat: z.string(),
   useTime: z.boolean(),
   timeFormat: z.string(),
-  useSerial: z.boolean(),
   datePosition: z.enum(['prepend', 'append']),
+  useSerial: z.boolean(),
   serialPadding: z.enum(['1', '01', '001', '0001']),
+  useEmoji: z.boolean(),
+  selectedEmoji: z.string(),
+  emojiPosition: z.enum(['beforeDate', 'afterDate', 'afterTitle']),
 });
 export type NamingOptions = z.infer<typeof NamingOptionsSchema>;
 
@@ -31,5 +34,3 @@ export const ConvertToMarkdownOutputSchema = z.object({
   })),
 });
 export type ConvertToMarkdownOutput = z.infer<typeof ConvertToMarkdownOutputSchema>;
-
-    
