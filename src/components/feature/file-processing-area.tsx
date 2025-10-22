@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useRef, type ChangeEvent, useEffect } from 'react';
@@ -158,23 +159,26 @@ function formatMarkdown(data: ReturnType<typeof parseKeepHtml>, formattingOption
 function createFilename(data: ReturnType<typeof parseKeepHtml>, options: NamingOptions, serial: number): string {
   const parts: string[] = [];
   const now = new Date();
-  
+
   const emojiPart = options.useEmoji ? options.selectedEmoji : '';
 
   const datePart = options.useDate ? format(data.creationTime, options.dateFormat) : '';
   const timePart = options.useTime ? format(now, options.timeFormat) : '';
   let dateTimePart = [datePart, timePart].filter(Boolean).join('_');
   
-  if (dateTimePart) {
-      if (options.datePosition === 'prepend') {
-          if (options.useEmoji && options.emojiPosition === 'beforeDate') {
-              dateTimePart = `${emojiPart} ${dateTimePart}`;
-          }
-          if (options.useEmoji && options.emojiPosition === 'afterDate') {
-              dateTimePart = `${dateTimePart} ${emojiPart}`;
-          }
-          parts.unshift(dateTimePart);
+  let effectiveEmojiPosition = options.emojiPosition;
+  if (!options.useDate) {
+    effectiveEmojiPosition = 'afterTitle';
+  }
+
+  if (dateTimePart && options.datePosition === 'prepend') {
+      if (options.useEmoji && effectiveEmojiPosition === 'beforeDate') {
+          dateTimePart = `${emojiPart} ${dateTimePart}`;
       }
+      if (options.useEmoji && effectiveEmojiPosition === 'afterDate') {
+          dateTimePart = `${dateTimePart} ${emojiPart}`;
+      }
+      parts.unshift(dateTimePart);
   }
 
   let titlePart = '';
@@ -199,16 +203,16 @@ function createFilename(data: ReturnType<typeof parseKeepHtml>, options: NamingO
 
   titlePart = titlePart.replace(/[\\/]/g, '-'); // Sanitize
 
-  if (options.useEmoji && options.emojiPosition === 'afterTitle') {
+  if (options.useEmoji && effectiveEmojiPosition === 'afterTitle') {
       titlePart = `${titlePart} ${emojiPart}`;
   }
   parts.push(titlePart);
 
   if (dateTimePart && options.datePosition === 'append') {
-      if (options.useEmoji && options.emojiPosition === 'beforeDate') {
+      if (options.useEmoji && effectiveEmojiPosition === 'beforeDate') {
           dateTimePart = `${emojiPart} ${dateTimePart}`;
       }
-      if (options.useEmoji && options.emojiPosition === 'afterDate') {
+      if (options.useEmoji && effectiveEmojiPosition === 'afterDate') {
           dateTimePart = `${dateTimePart} ${emojiPart}`;
       }
       parts.push(dateTimePart);
@@ -572,11 +576,16 @@ export function FileProcessingArea() {
       const timePart = namingOptions.useTime ? format(now, namingOptions.timeFormat) : '';
       let dateTimePart = [datePart, timePart].filter(Boolean).join('_');
   
+      let effectiveEmojiPosition = namingOptions.emojiPosition;
+      if (!namingOptions.useDate) {
+        effectiveEmojiPosition = 'afterTitle';
+      }
+
       if (dateTimePart && namingOptions.datePosition === 'prepend') {
-          if (namingOptions.useEmoji && namingOptions.emojiPosition === 'beforeDate') {
+          if (namingOptions.useEmoji && effectiveEmojiPosition === 'beforeDate') {
             dateTimePart = `${emojiPart} ${dateTimePart}`;
           }
-           if (namingOptions.useEmoji && namingOptions.emojiPosition === 'afterDate') {
+           if (namingOptions.useEmoji && effectiveEmojiPosition === 'afterDate') {
             dateTimePart = `${dateTimePart} ${emojiPart}`;
           }
           parts.push(dateTimePart);
@@ -607,17 +616,17 @@ export function FileProcessingArea() {
       }
       
       if (titlePart) {
-        if (namingOptions.useEmoji && namingOptions.emojiPosition === 'afterTitle') {
+        if (namingOptions.useEmoji && effectiveEmojiPosition === 'afterTitle') {
           titlePart = `${titlePart} ${emojiPart}`;
         }
         parts.push(titlePart);
       }
       
       if (dateTimePart && namingOptions.datePosition === 'append') {
-          if (namingOptions.useEmoji && namingOptions.emojiPosition === 'beforeDate') {
+          if (namingOptions.useEmoji && effectiveEmojiPosition === 'beforeDate') {
             dateTimePart = `${emojiPart} ${emojiPart}`;
           }
-           if (namingOptions.useEmoji && namingOptions.emojiPosition === 'afterDate') {
+           if (namingOptions.useEmoji && effectiveEmojiPosition === 'afterDate') {
             dateTimePart = `${dateTimePart} ${emojiPart}`;
           }
           parts.push(dateTimePart);
@@ -639,7 +648,7 @@ export function FileProcessingArea() {
       setFilenamePreview(preview + '.md');
     }
     getFilenamePreview();
-  }, [namingOptions, firstNoteTitle, htmlFiles]);
+  }, [namingOptions, firstNoteTitle]);
 
 
   const handlePreviewClick = async () => {
@@ -1017,7 +1026,7 @@ export function FileProcessingArea() {
 
                     <div className="bg-secondary p-3 rounded-md text-sm text-muted-foreground flex items-center gap-2">
                         <Eye className="h-4 w-4 text-primary shrink-0"/>
-                        {filenamePreview ? <span className="truncate">{filenamePreview}</span> : <span className="text-muted-foreground/80">Preview will appear here...</span>}
+                        <span className="truncate">{filenamePreview}</span>
                     </div>
 
                 </CardContent>
