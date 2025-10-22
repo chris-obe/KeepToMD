@@ -24,6 +24,7 @@ import {
 export function HistoryDisplay() {
   const [runHistory, setRunHistory] = useState<RunHistoryItem[]>([]);
   const [isClient, setIsClient] = useState(false);
+  const [isTooltipOpen, setIsTooltipOpen] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
@@ -77,9 +78,12 @@ export function HistoryDisplay() {
         <DialogHeader>
             <div className="flex items-center justify-between">
               <DialogTitle>Run History</DialogTitle>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
+              <TooltipProvider delayDuration={0}>
+                <Tooltip open={isTooltipOpen}>
+                  <TooltipTrigger asChild 
+                    onMouseEnter={() => setIsTooltipOpen(true)} 
+                    onMouseLeave={() => setIsTooltipOpen(false)}
+                  >
                     <Button variant="ghost" size="icon" onClick={handleClearHistory} disabled={runHistory.length === 0}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
