@@ -796,16 +796,14 @@ export function FileProcessingArea() {
               How would you like to proceed?
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <AlertDialogFooter>
+            <Button variant="secondary" onClick={() => handleDuplicateDialogAction('all')}>
+                Convert All Again
+            </Button>
             <Button variant="outline" onClick={() => handleDuplicateDialogAction('new')}>
               Convert New Files Only
             </Button>
-            <Button variant="secondary" onClick={() => handleDuplicateDialogAction('all')}>
-              Convert All Again
-            </Button>
-            <AlertDialogCancel asChild>
-              <Button variant="ghost" onClick={() => setDuplicateDialogOpen(false)}>Cancel</Button>
-            </AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
