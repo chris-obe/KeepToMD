@@ -1,5 +1,5 @@
 import { FileProcessingArea } from '@/components/feature/file-processing-area';
-import { HistoryDisplay } from '@/components/feature/history-display';
+import { PreferencesMenu } from '@/components/feature/preferences-menu';
 import { Notebook } from 'lucide-react';
 
 export default function Home() {
@@ -18,7 +18,7 @@ export default function Home() {
         </header>
         <FileProcessingArea />
       </div>
-      <HistoryDisplay />
+      <PreferencesMenu />
     </main>
   );
 }

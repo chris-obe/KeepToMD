@@ -73,6 +73,7 @@ import TurndownService from 'turndown';
 import JSZip from 'jszip';
 import { Input } from '../ui/input';
 import CryptoJS from 'crypto-js';
+import { usePresets } from '@/hooks/use-presets';
 
 
 const turndownService = new TurndownService();
@@ -220,13 +221,7 @@ function createFilename(data: ReturnType<typeof parseKeepHtml>, options: NamingO
 
 // --- End of Moved Conversion Logic ---
 
-type Preset = {
-  name: string;
-  options: {
-    naming: NamingOptions;
-    formatting: FormattingOptions;
-  };
-};
+
 
 export type RunHistoryItem = {
   id: string;
@@ -266,39 +261,26 @@ export function FileProcessingArea() {
   const [firstNoteTitle, setFirstNoteTitle] = useState<string>('My Note Title');
   const [filenamePreview, setFilenamePreview] = useState<string>('');
 
-  const initialNamingOptions: NamingOptions = {
-    useTitle: true,
-    useBody: true,
-    bodyLength: 30,
-    bodyUnit: 'characters',
-    useDate: true,
-    dateFormat: 'yyyy-MM-dd',
-    useTime: false,
-    timeFormat: 'HH-mm-ss',
-    datePosition: 'prepend',
-    useSerial: false,
-    serialPadding: '1',
-    useEmoji: false,
-    selectedEmoji: '💡',
-    emojiPosition: 'beforeDate',
-  };
-  
-  const initialFormattingOptions: FormattingOptions = {
-    tagHandling: 'hash',
-  };
+  const {
+    presets,
+    namingOptions,
+    setNamingOptions,
+    formattingOptions,
+    setFormattingOptions,
+    selectedPreset,
+    handleSelectPreset,
+    handleSavePreset,
+    handleDeletePreset
+  } = usePresets();
 
-  const [namingOptions, setNamingOptions] = useState<NamingOptions>(initialNamingOptions);
-  const [formattingOptions, setFormattingOptions] = useState<FormattingOptions>(initialFormattingOptions);
+  const [presetName, setPresetName] = useState('');
+
   const [convertedFiles, setConvertedFiles] = useState<ConvertToMarkdownOutput['convertedFiles']>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState('');
   const [queuedFiles, setQueuedFiles] = useState<string[]>([]);
   const [previewFile, setPreviewFile] = useState<typeof convertedFiles[0] | null>(null);
-
-  const [presets, setPresets] = useState<Preset[]>([]);
-  const [presetName, setPresetName] = useState('');
-  const [selectedPreset, setSelectedPreset] = useState('');
 
   const [runHistory, setRunHistory] = useState<RunHistoryItem[]>([]);
   const [duplicateRun, setDuplicateRun] = useState<RunHistoryItem | null>(null);
@@ -331,82 +313,6 @@ export function FileProcessingArea() {
     setRunHistory(updatedHistory);
     localStorage.setItem('keepSyncHistory', JSON.stringify(updatedHistory));
   };
-
-
-  // --- Preset Management ---
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const savedPresets = localStorage.getItem('keepSyncPresets');
-        if (savedPresets) {
-          setPresets(JSON.parse(savedPresets));
-        }
-      } catch (error) {
-        console.error("Failed to load presets from localStorage", error);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('keepSyncPresets', JSON.stringify(presets));
-      } catch (error) {
-        console.error("Failed to save presets to localStorage", error);
-      }
-    }
-  }, [presets]);
-  
-  const handleSavePreset = () => {
-    if (!presetName) {
-      toast({ variant: 'destructive', title: 'Preset name cannot be empty.' });
-      return;
-    }
-    const newPreset: Preset = {
-      name: presetName,
-      options: { naming: namingOptions, formatting: formattingOptions }
-    };
-
-    const existingIndex = presets.findIndex(p => p.name === presetName);
-    if (existingIndex > -1) {
-      const updatedPresets = [...presets];
-      updatedPresets[existingIndex] = newPreset;
-      setPresets(updatedPresets);
-      toast({ title: 'Preset Updated', description: `Preset "${presetName}" has been updated.` });
-    } else {
-      setPresets([...presets, newPreset]);
-      toast({ title: 'Preset Saved', description: `Preset "${presetName}" has been saved.` });
-    }
-    setPresetName('');
-    setSelectedPreset(newPreset.name);
-  };
-
-  const handleSelectPreset = (name: string) => {
-    if (name === 'default') {
-      setNamingOptions(initialNamingOptions);
-      setFormattingOptions(initialFormattingOptions);
-      setSelectedPreset('');
-      return;
-    }
-    const preset = presets.find(p => p.name === name);
-    if (preset) {
-      setNamingOptions(preset.options.naming);
-      setFormattingOptions(preset.options.formatting);
-      setSelectedPreset(name);
-      toast({ title: 'Preset Loaded', description: `Settings for "${name}" have been applied.` });
-    }
-  };
-
-  const handleDeletePreset = () => {
-    if (!selectedPreset) {
-      toast({ variant: 'destructive', title: 'No preset selected to delete.' });
-      return;
-    }
-    setPresets(presets.filter(p => p.name !== selectedPreset));
-    handleSelectPreset('default'); // Revert to default settings
-    toast({ title: 'Preset Deleted', description: `Preset "${selectedPreset}" has been deleted.` });
-  };
-  // --- End Preset Management ---
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
@@ -770,6 +676,16 @@ export function FileProcessingArea() {
     if (value === 'lines') newLength = 1;
     setNamingOptions(p => ({...p, bodyUnit: value, bodyLength: newLength}));
   }
+
+  const onSavePreset = () => {
+    if (!presetName) {
+      toast({ variant: 'destructive', title: 'Preset name cannot be empty.' });
+      return;
+    }
+    handleSavePreset(presetName);
+    toast({ title: 'Preset Saved', description: `Preset "${presetName}" has been saved.` });
+    setPresetName('');
+  };
 
 
   return (
@@ -1135,7 +1051,7 @@ export function FileProcessingArea() {
                   value={presetName}
                   onChange={(e) => setPresetName(e.target.value)}
                 />
-                <Button onClick={handleSavePreset}>
+                <Button onClick={onSavePreset}>
                   <Save className="mr-2 h-4 w-4" />
                   Save Preset
                 </Button>
