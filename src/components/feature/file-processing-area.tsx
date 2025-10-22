@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useRef, type ChangeEvent, useEffect } from 'react';
@@ -429,12 +430,14 @@ export function FileProcessingArea() {
 
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !htmlFiles.length) {
-      setFilenamePreview('');
-      return;
-    }
+    if (typeof window === 'undefined') return;
 
     const getFilenamePreview = () => {
+      if (!htmlFiles.length) {
+        setFilenamePreview('');
+        return;
+      }
+
       const parts: string[] = [];
       const now = new Date();
       const datePart = namingOptions.useDate ? format(now, namingOptions.dateFormat) : '';
@@ -866,9 +869,12 @@ export function FileProcessingArea() {
               </div>
             )}
             {allFiles.length > 0 && !isLoading && (
-                <div className="text-sm text-muted-foreground mt-4 text-center">
-                    <p>This will download a single .zip file containing {htmlFiles.length} notes and {assetFiles.length} assets.</p>
-                     <p className="mt-2 text-xs">For best results in Obsidian, unzip the file and place your assets in the same folder as your notes.</p>
+                <div className="mt-4 flex items-start gap-2 rounded-lg bg-background/50 p-3 text-sm text-muted-foreground">
+                    <Info className="h-5 w-5 shrink-0 text-accent" />
+                    <div className="space-y-1">
+                        <p>This will download a single .zip file containing {htmlFiles.length} converted notes and {assetFiles.length} assets.</p>
+                        <p>For best results in Obsidian, unzip the file and place your assets in the same folder as your notes.</p>
+                    </div>
                 </div>
             )}
           </AccordionContent>
@@ -877,3 +883,5 @@ export function FileProcessingArea() {
     </div>
   );
 }
+
+    
