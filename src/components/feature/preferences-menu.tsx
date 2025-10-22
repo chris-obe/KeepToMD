@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { History, Settings, Moon, Sun, Library } from 'lucide-react';
 import { HistoryDisplay } from './history-display';
@@ -17,6 +17,11 @@ import {
 export function PreferencesMenu() {
   const [isOpen, setIsOpen] = useState(false);
   const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const toggleTheme = () => {
     setTheme(theme === 'dark' ? 'light' : 'dark');
@@ -41,6 +46,11 @@ export function PreferencesMenu() {
   ];
 
   const renderMenuItem = (item: (typeof menuItems)[0]) => {
+    // Prevent rendering the theme toggle icon on the server to avoid hydration mismatch
+    if (!mounted && (item.icon === Sun || item.icon === Moon)) {
+      return null;
+    }
+
     const button = (
       <Button
         variant="secondary"
