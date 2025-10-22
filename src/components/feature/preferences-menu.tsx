@@ -47,21 +47,20 @@ export function PreferencesMenu() {
         type: 'markdown' as const,
     },
     {
-      label: theme === 'dark' ? 'Light Mode' : 'Dark Mode',
-      icon: theme === 'dark' ? Sun : Moon,
+      label: mounted ? (theme === 'dark' ? 'Light Mode' : 'Dark Mode') : 'Toggle Theme',
+      icon: mounted && theme === 'dark' ? Sun : Moon,
       action: toggleTheme,
     },
   ];
 
   const renderMenuItem = (item: (typeof menuItems)[0]) => {
-    // Prevent rendering the theme toggle icon on the server to avoid hydration mismatch
-    if (!mounted && (item.icon === Sun || item.icon === Moon)) {
+    if (!mounted && (item.action === toggleTheme)) {
       return null;
     }
     
-    let label = item.label;
+    let tooltipLabel = item.label;
     if (item.action === toggleTheme) {
-        label = `Toggle ${theme === 'dark' ? 'Light' : 'Dark'} Mode`;
+        tooltipLabel = `Toggle ${theme === 'dark' ? 'Light' : 'Dark'} Mode`;
     }
 
     const button = (
@@ -90,7 +89,7 @@ export function PreferencesMenu() {
         <Tooltip>
           <TooltipTrigger asChild>{content}</TooltipTrigger>
           <TooltipContent side="left" align="center">
-            <p>{label}</p>
+            <p>{tooltipLabel}</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -100,6 +99,7 @@ export function PreferencesMenu() {
   return (
     <div
       className="fixed bottom-6 right-6 z-50"
+      onMouseEnter={() => setIsOpen(true)}
       onMouseLeave={() => setIsOpen(false)}
     >
       <div className="relative flex flex-col items-center gap-3">
@@ -115,7 +115,7 @@ export function PreferencesMenu() {
         </div>
 
         {/* Main Trigger Button */}
-        <div onMouseEnter={() => setIsOpen(true)}>
+        <div>
             <TooltipProvider delayDuration={0}>
             <Tooltip open={isOpen ? false : undefined}>
                 <TooltipTrigger asChild>
