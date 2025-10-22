@@ -712,7 +712,7 @@ export function FileProcessingArea() {
               How would you like to proceed?
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="flex-row justify-end gap-2">
             <Button variant="secondary" onClick={() => handleDuplicateDialogAction('all')}>
                 Convert All Again
             </Button>
@@ -785,7 +785,7 @@ export function FileProcessingArea() {
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="destructive" size="icon" onClick={handleDeletePreset}>
+                        <Button variant="destructive" size="icon" onClick={() => handleDeletePreset(selectedPreset)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger>
@@ -1016,8 +1016,8 @@ export function FileProcessingArea() {
             <Card className="bg-background/50">
                  <CardHeader>
                     <CardTitle className="flex items-center text-base">
-                        File formatting
-                        <span className="ml-2 text-sm font-normal text-muted-foreground">relevant for Obsidian</span>
+                        <FileText className="mr-2 h-5 w-5 text-purple-400" />
+                        Markdown Formatting
                         <div className="flex-grow" />
                         <InfoTooltip>Options for how content is formatted inside the markdown files.</InfoTooltip>
                     </CardTitle>
@@ -1040,6 +1040,52 @@ export function FileProcessingArea() {
                             </div>
                         </RadioGroup>
                     </div>
+                    <Separator />
+                     <Dialog>
+                        <DialogTrigger asChild>
+                            <Button id="preview-dialog-trigger" className="w-full" onClick={handlePreviewClick} disabled={isLoading || htmlFiles.length === 0}>
+                                {isLoading && convertedFiles.length === 0 ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Eye className="mr-2 h-5 w-5" />}
+                                {isLoading && convertedFiles.length === 0 ? 'Processing...' : 'Preview Markdown'}
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+                            <DialogHeader>
+                                <DialogTitle>Conversion Preview</DialogTitle>
+                            </DialogHeader>
+                            <div className="flex-grow grid grid-cols-3 gap-4 overflow-hidden">
+                                <ScrollArea className="col-span-1 border rounded-lg">
+                                    <div className="p-4">
+                                    {convertedFiles.map((file, index) => (
+                                        <div key={index}>
+                                            <button onClick={() => setPreviewFile(file)} className={`w-full text-left p-2 rounded-md ${previewFile?.originalPath === file.originalPath ? 'bg-accent' : ''}`}>
+                                                <p className="font-semibold truncate">{file.newPath}</p>
+                                                <p className="text-xs text-muted-foreground truncate">{file.originalPath}</p>
+                                            </button>
+                                        </div>
+                                    ))}
+                                    </div>
+                                </ScrollArea>
+                                <ScrollArea className="col-span-2 border rounded-lg">
+                                    {previewFile ? (
+                                        <div className="p-4">
+                                            <div className="prose dark:prose-invert max-w-none prose-p:my-2 prose-h1:mb-4 prose-h1:mt-2 prose-h2:mb-3 prose-h2:mt-1.5 prose-h3:mb-2 prose-h3:mt-1 font-body text-foreground">
+                                              {renderMarkdownContent(previewFile.content)}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center justify-center h-full text-muted-foreground">
+                                            <p>Select a file to preview</p>
+                                        </div>
+                                    )}
+                                </ScrollArea>
+                            </div>
+                            <div className="flex justify-end gap-2 pt-4">
+                                {previewFile && <Button variant="outline" onClick={() => downloadFile({newPath: previewFile.newPath, content: previewFile.content})}>Download Selected</Button>}
+                                <Button onClick={() => downloadAllAsZip(convertedFiles)}>Download All Previewed as .zip</Button>
+                            </div>
+                        </DialogContent>
+                     </Dialog>
+
                 </CardContent>
             </Card>
             <div className="space-y-2 pt-6 border-t">
@@ -1065,59 +1111,14 @@ export function FileProcessingArea() {
         <AccordionItem value="item-3" className="border rounded-lg bg-card overflow-hidden">
           <AccordionTrigger className="px-6 py-4 text-lg font-semibold bg-purple-500/10 hover:no-underline [&[data-state=open]>svg]:-rotate-180">
              <div className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-purple-400" />
+                <FileArchive className="h-5 w-5 text-purple-400" />
                 <span>Finish</span>
             </div>
           </AccordionTrigger>
           <AccordionContent className="px-6 pt-4 pb-6">
              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                 <Dialog>
-                    <DialogTrigger asChild>
-                        <Button id="preview-dialog-trigger" size="lg" className="w-full sm:w-auto" onClick={handlePreviewClick} disabled={isLoading || htmlFiles.length === 0}>
-                            {isLoading && convertedFiles.length === 0 ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Eye className="mr-2 h-5 w-5" />}
-                            {isLoading && convertedFiles.length === 0 ? 'Processing...' : 'Preview First Note'}
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
-                        <DialogHeader>
-                            <DialogTitle>Conversion Preview</DialogTitle>
-                        </DialogHeader>
-                        <div className="flex-grow grid grid-cols-3 gap-4 overflow-hidden">
-                            <ScrollArea className="col-span-1 border rounded-lg">
-                                <div className="p-4">
-                                {convertedFiles.map((file, index) => (
-                                    <div key={index}>
-                                        <button onClick={() => setPreviewFile(file)} className={`w-full text-left p-2 rounded-md ${previewFile?.originalPath === file.originalPath ? 'bg-accent' : ''}`}>
-                                            <p className="font-semibold truncate">{file.newPath}</p>
-                                            <p className="text-xs text-muted-foreground truncate">{file.originalPath}</p>
-                                        </button>
-                                    </div>
-                                ))}
-                                </div>
-                            </ScrollArea>
-                            <ScrollArea className="col-span-2 border rounded-lg">
-                                {previewFile ? (
-                                    <div className="p-4">
-                                        <div className="prose prose-invert max-w-none prose-p:my-2 prose-h1:mb-4 prose-h1:mt-2 prose-h2:mb-3 prose-h2:mt-1.5 prose-h3:mb-2 prose-h3:mt-1 font-body text-foreground">
-                                          {renderMarkdownContent(previewFile.content)}
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center justify-center h-full text-muted-foreground">
-                                        <p>Select a file to preview</p>
-                                    </div>
-                                )}
-                            </ScrollArea>
-                        </div>
-                        <div className="flex justify-end gap-2 pt-4">
-                            {previewFile && <Button variant="outline" onClick={() => downloadFile({newPath: previewFile.newPath, content: previewFile.content})}>Download Selected</Button>}
-                            <Button onClick={() => downloadAllAsZip(convertedFiles)}>Download All Previewed as .zip</Button>
-                        </div>
-                    </DialogContent>
-                 </Dialog>
-
                 <Button size="lg" variant="secondary" className="w-full sm:w-auto" onClick={() => startConversion(htmlFiles, false)} disabled={isLoading || htmlFiles.length === 0}>
-                    {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <FileArchive className="mr-2 h-5 w-5" />}
+                    {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Download className="mr-2 h-5 w-5" />}
                     {isLoading ? 'Processing...' : 'Convert & Download .zip'}
                 </Button>
             </div>
