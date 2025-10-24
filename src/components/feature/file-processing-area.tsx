@@ -248,7 +248,7 @@ const generateHash = (files: File[]) => {
 
 
 const InfoTooltip = ({ children }: { children: React.ReactNode }) => (
-  <TooltipProvider>
+  <TooltipProvider delayDuration={500}>
     <Tooltip>
       <TooltipTrigger asChild>
         <button type="button" className="ml-1 text-muted-foreground">
@@ -596,7 +596,7 @@ export function FileProcessingArea() {
       }
   
       let titlePart = '';
-      if (namingOptions.useTitle) {
+      if (namingOptions.useTitle && firstNoteTitle !== 'My Note Title') {
         titlePart = firstNoteTitle;
       } else if (namingOptions.useBody) {
         const bodyContent = "This is the beginning of the note content and it can be quite long.";
@@ -778,7 +778,7 @@ export function FileProcessingArea() {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6 space-y-4">
-           <Accordion type="multiple" defaultValue={['item-1', 'item-2']} className="w-full">
+           <Accordion type="multiple" defaultValue={['item-1', 'item-2']} className="w-full space-y-4">
             <Card className="bg-background/50 overflow-hidden">
                 <AccordionItem value="item-1" className="border-b-0">
                     <div className="px-6 py-4 space-y-4">
