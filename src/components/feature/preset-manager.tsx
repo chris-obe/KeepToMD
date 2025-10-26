@@ -25,10 +25,12 @@ import { Label } from '../ui/label';
 
 export function PresetManager({
   children,
-  type
+  type,
+  tooltip,
 }: {
-  children?: React.ReactNode;
+  children: React.ReactNode;
   type: 'naming' | 'markdown';
+  tooltip?: string;
 }) {
     const { 
         namingPresets, 
@@ -72,12 +74,27 @@ export function PresetManager({
   const title = isNaming ? 'Manage Naming Presets' : 'Manage Markdown Presets';
   const placeholder = isNaming ? 'My Awesome Naming Preset' : 'My Awesome Markdown Preset';
 
+  const trigger = (
+    <DialogTrigger asChild>
+      {children}
+    </DialogTrigger>
+  );
 
   return (
     <Dialog>
-      <DialogTrigger asChild>
-        {children}
-      </DialogTrigger>
+        <TooltipProvider delayDuration={0}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              {trigger}
+            </TooltipTrigger>
+            {tooltip && (
+              <TooltipContent side="left" align="center">
+                <p>{tooltip}</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
+
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
@@ -137,5 +154,3 @@ export function PresetManager({
     </Dialog>
   );
 }
-
-    

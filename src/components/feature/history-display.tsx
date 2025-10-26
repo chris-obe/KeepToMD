@@ -23,8 +23,12 @@ import {
 
 export function HistoryDisplay({
   children,
+  tooltip,
+  disabled = false,
 }: {
-  children?: React.ReactNode;
+  children: React.ReactNode;
+  tooltip?: string;
+  disabled?: boolean;
 }) {
   const [runHistory, setRunHistory] = useState<RunHistoryItem[]>([]);
   const [isClient, setIsClient] = useState(false);
@@ -66,66 +70,36 @@ export function HistoryDisplay({
       setRunHistory([]);
     }
   };
-  
-  if (!isClient) {
-    // If children are provided, render them for SSR, otherwise render nothing
-    return children || null;
+
+  const trigger = (
+    <DialogTrigger asChild>
+      {children}
+    </DialogTrigger>
+  );
+
+  // If there's no tooltip, just render the dialog with its trigger
+  if (!tooltip) {
+    return (
+      <Dialog>
+        {trigger}
+        <DialogContent className="max-w-md">
+          {/* Dialog Content */}
+        </DialogContent>
+      </Dialog>
+    );
   }
 
+  // If there is a tooltip, wrap the trigger with it
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        {children || (
-            <Button variant="outline" size="icon" className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg">
-                <History className="h-6 w-6" />
-            </Button>
-        )}
-      </DialogTrigger>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-            <div className="flex items-center justify-between">
-              <DialogTitle>Run History</DialogTitle>
-              <TooltipProvider delayDuration={0}>
-                <Tooltip open={isTooltipOpen}>
-                  <TooltipTrigger asChild 
-                    onMouseEnter={() => setIsTooltipOpen(true)} 
-                    onMouseLeave={() => setIsTooltipOpen(false)}
-                  >
-                    <Button variant="ghost" size="icon" onClick={handleClearHistory} disabled={runHistory.length === 0}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Clear all history</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-        </DialogHeader>
-        <div className="flex items-start gap-2 rounded-lg bg-background/50 p-3 text-sm text-muted-foreground border">
-          <ShieldCheck className="h-5 w-5 shrink-0 text-accent" />
-          <p>Run history is stored locally in your browser. Clearing your browser data will permanently remove this history.</p>
-        </div>
-        <ScrollArea className="h-96 w-full">
-          <div className="space-y-4 pr-4">
-            {runHistory.length > 0 ? (
-              runHistory.map((run) => (
-                <div key={run.id} className="p-3 rounded-lg border bg-card/50">
-                  <p className="font-semibold">{format(new Date(run.date), 'PPP p')}</p>
-                  <p className="text-sm text-muted-foreground">{run.fileCount} files processed</p>
-                  <p className="text-xs text-muted-foreground/80 mt-2 break-all">
-                    Hash: <span className="font-mono">{run.hash.substring(0, 24)}...</span>
-                  </p>
-                </div>
-              ))
-            ) : (
-              <div className="flex h-64 items-center justify-center text-center text-muted-foreground">
-                <p>No conversion runs have been recorded yet.</p>
-              </div>
-            )}
-          </div>
-        </ScrollArea>
-      </DialogContent>
-    </Dialog>
+    <TooltipProvider delayDuration={0}>
+      <Tooltip>
+        <TooltipTrigger asChild disabled={disabled}>
+           {children}
+        </TooltipTrigger>
+        <TooltipContent side="left" align="center">
+          <p>{tooltip}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
