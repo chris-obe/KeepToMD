@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -19,82 +18,26 @@ export function PreferencesMenu() {
   const [isOpen, setIsOpen] = useState(false);
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [isMainTooltipOpen, setIsMainTooltipOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    // Hide main tooltip if menu is open
+    if (isOpen) {
+      setIsMainTooltipOpen(false);
+    }
+  }, [isOpen]);
+
   const toggleTheme = () => {
     setTheme(theme === 'dark' ? 'light' : 'dark');
   };
 
-  const menuItems = [
-    {
-      label: 'History',
-      icon: History,
-      action: 'history',
-    },
-    {
-      label: 'File Name Presets',
-      icon: Type,
-      action: 'namingPresets',
-      type: 'naming' as const,
-    },
-    {
-        label: 'Markdown Presets',
-        icon: FileText,
-        action: 'markdownPresets',
-        type: 'markdown' as const,
-    },
-    {
-      label: mounted ? (theme === 'dark' ? 'Light Mode' : 'Dark Mode') : 'Toggle Theme',
-      icon: mounted && theme === 'dark' ? Sun : Moon,
-      action: toggleTheme,
-    },
-  ];
-
-  const renderMenuItem = (item: (typeof menuItems)[0]) => {
-    if (!mounted && (item.action === toggleTheme)) {
-      return null;
-    }
-    
-    let tooltipLabel = item.label;
-    if (item.action === toggleTheme) {
-        tooltipLabel = `Toggle ${theme === 'dark' ? 'Light' : 'Dark'} Mode`;
-    }
-
-    const button = (
-      <Button
-        variant="secondary"
-        size="icon"
-        className="h-12 w-12 rounded-full"
-        onClick={typeof item.action === 'function' ? item.action : undefined}
-      >
-        <item.icon className="h-6 w-6" />
-      </Button>
-    );
-
-    let content;
-
-    if (item.action === 'history') {
-      content = <HistoryDisplay>{button}</HistoryDisplay>;
-    } else if (item.action === 'namingPresets' || item.action === 'markdownPresets') {
-      content = <PresetManager type={item.type}>{button}</PresetManager>;
-    } else {
-      content = button;
-    }
-
-    return (
-      <TooltipProvider key={item.label} delayDuration={0}>
-        <Tooltip>
-          <TooltipTrigger asChild>{content}</TooltipTrigger>
-          <TooltipContent side="left" align="center">
-            <p>{tooltipLabel}</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
-  };
+  if (!mounted) {
+    return null;
+  }
 
   return (
     <div
@@ -111,34 +54,110 @@ export function PreferencesMenu() {
               : 'pointer-events-none translate-y-4 opacity-0'
           }`}
         >
-          {menuItems.map(renderMenuItem)}
+          {/* History Button */}
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <HistoryDisplay>
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    className="h-12 w-12 rounded-full"
+                  >
+                    <History className="h-6 w-6" />
+                  </Button>
+                </HistoryDisplay>
+              </TooltipTrigger>
+              <TooltipContent side="left" align="center">
+                <p>History</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          {/* Naming Presets Button */}
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PresetManager type="naming">
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    className="h-12 w-12 rounded-full"
+                  >
+                    <Type className="h-6 w-6" />
+                  </Button>
+                </PresetManager>
+              </TooltipTrigger>
+              <TooltipContent side="left" align="center">
+                <p>File Name Presets</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          
+          {/* Markdown Presets Button */}
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PresetManager type="markdown">
+                   <Button
+                    variant="secondary"
+                    size="icon"
+                    className="h-12 w-12 rounded-full"
+                  >
+                    <FileText className="h-6 w-6" />
+                  </Button>
+                </PresetManager>
+              </TooltipTrigger>
+              <TooltipContent side="left" align="center">
+                <p>Markdown Presets</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          {/* Theme Toggle Button */}
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className="h-12 w-12 rounded-full"
+                  onClick={toggleTheme}
+                >
+                  {theme === 'dark' ? <Sun className="h-6 w-6" /> : <Moon className="h-6 w-6" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="left" align="center">
+                <p>Toggle {theme === 'dark' ? 'Light' : 'Dark'} Mode</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
 
         {/* Main Trigger Button */}
         <div>
-            <TooltipProvider delayDuration={0}>
-            <Tooltip open={isOpen ? false : undefined}>
-                <TooltipTrigger asChild>
+          <TooltipProvider delayDuration={0}>
+            <Tooltip open={isMainTooltipOpen && !isOpen} onOpenChange={setIsMainTooltipOpen}>
+              <TooltipTrigger asChild>
                 <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-14 w-14 rounded-full shadow-lg"
+                  variant="outline"
+                  size="icon"
+                  className="h-14 w-14 rounded-full shadow-lg"
                 >
-                    <Settings
+                  <Settings
                     className={`h-6 w-6 transition-transform duration-300 ${
-                        isOpen ? 'rotate-90' : ''
+                      isOpen ? 'rotate-90' : ''
                     }`}
-                    />
+                  />
                 </Button>
-                </TooltipTrigger>
-                <TooltipContent side="left" align="center">
+              </TooltipTrigger>
+              <TooltipContent side="left" align="center">
                 <p>Preferences</p>
-                </TooltipContent>
+              </TooltipContent>
             </Tooltip>
-            </TooltipProvider>
+          </TooltipProvider>
         </div>
       </div>
     </div>
   );
 }
-    
