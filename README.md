@@ -1,4 +1,4 @@
-# KeepTakeout to Markdown Converter
+# Google Keep Takeout to Markdown Converter
 
 This application provides a streamlined solution for converting your Google Keep takeout data into Obsidian-compatible Markdown files. Designed with privacy and user control in mind, it processes all files locally in your browser, ensuring your data never leaves your device.
 
