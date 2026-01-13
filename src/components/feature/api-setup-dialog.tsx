@@ -17,12 +17,14 @@ import { useKeepConnection } from "@/hooks/use-keep-connection";
 type SetupStep = "choice" | "api";
 
 const KEEP_SERVICE_URL = "http://localhost:3717/health";
+const KEEP_SERVICE_DIR =
+  "export BRIDGE_DIR=\"$HOME/GoogleKeepToMarkdown/KeepToMD-bridge\"";
 const KEEP_SERVICE_CLONE =
-  "git clone https://github.com/chris-obe/KeepToMD.bridge.git";
-const KEEP_SERVICE_INSTALL =
-  "cd KeepToMD-bridge && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt";
+  "git clone https://github.com/chris-obe/KeepToMD.bridge.git \"$BRIDGE_DIR\"";
+const KEEP_SERVICE_SETUP =
+  "cd \"$BRIDGE_DIR\" && ./setup.sh";
 const KEEP_SERVICE_RUN =
-  "cd KeepToMD-bridge && source .venv/bin/activate && uvicorn app.main:app --host 127.0.0.1 --port 3717";
+  "cd \"$BRIDGE_DIR\" && ./setup.sh --run";
 
 export function ApiSetupDialog() {
   const [open, setOpen] = useState(false);
@@ -145,7 +147,34 @@ export function ApiSetupDialog() {
             <div className="rounded-lg border bg-muted/20 p-4 space-y-4">
               <div>
                 <p className="text-sm font-semibold text-foreground">
-                  1. Clone the bridge repo
+                  1. Set the install folder
+                </p>
+                <div className="mt-3 flex items-center gap-2">
+                  <Input
+                    value={KEEP_SERVICE_DIR}
+                    readOnly
+                    className="text-xs"
+                  />
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    onClick={() => handleCopy(KEEP_SERVICE_DIR)}
+                    aria-label="Copy install folder command"
+                  >
+                    {copySuccess === KEEP_SERVICE_DIR ? (
+                      <Check className="h-4 w-4 text-emerald-500" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Adjust the path if you want a different location.
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">
+                  2. Clone the bridge repo
                 </p>
                 <div className="mt-3 flex items-center gap-2">
                   <Input
@@ -169,21 +198,21 @@ export function ApiSetupDialog() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-foreground">
-                  2. Install dependencies
+                  3. Run the setup script
                 </p>
                 <div className="mt-3 flex items-center gap-2">
                   <Input
-                    value={KEEP_SERVICE_INSTALL}
+                    value={KEEP_SERVICE_SETUP}
                     readOnly
                     className="text-xs"
                   />
                   <Button
                     variant="secondary"
                     size="icon"
-                    onClick={() => handleCopy(KEEP_SERVICE_INSTALL)}
-                    aria-label="Copy install command"
+                    onClick={() => handleCopy(KEEP_SERVICE_SETUP)}
+                    aria-label="Copy setup command"
                   >
-                    {copySuccess === KEEP_SERVICE_INSTALL ? (
+                    {copySuccess === KEEP_SERVICE_SETUP ? (
                       <Check className="h-4 w-4 text-emerald-500" />
                     ) : (
                       <Copy className="h-4 w-4" />
@@ -193,7 +222,7 @@ export function ApiSetupDialog() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-foreground">
-                  3. Run the local service
+                  4. Run the local service (or use --run)
                 </p>
                 <div className="mt-3 flex items-center gap-2">
                   <Input
@@ -219,7 +248,7 @@ export function ApiSetupDialog() {
 
             <div className="rounded-lg border bg-muted/20 p-4">
               <p className="text-sm font-semibold text-foreground">
-                2. Detect local service
+                5. Detect local service
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
                 The app checks {KEEP_SERVICE_URL}.
