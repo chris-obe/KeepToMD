@@ -2,7 +2,7 @@
 """
 This script updates the 'Date Modified' of files based on a date found inside the file.
 
-It's designed to work with the output from the KeepSync web application,
+It's designed to work with the output from the KeepToMD web application,
 which embeds the original note's creation date in the format:
 '**Created:** YYYY-MM-DD HH:MM:SS'
 
@@ -13,7 +13,7 @@ Usage:
    python update_file_dates.py /path/to/your/notes
 
 Replace '/path/to/your/notes' with the actual path to the folder containing
-the Markdown files you downloaded from KeepSync.
+the Markdown files you downloaded from KeepToMD.
 """
 import os
 import sys

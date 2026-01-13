@@ -1,4 +1,6 @@
-# **App Name**: KeepSync
+# **App Name**: KeepToMD
+
+Local Keep bridge repo: `https://github.com/chris-obe/KeepToMD.bridge` (folder name: `KeepToMD-bridge`).
 
 ## Core Features:
 

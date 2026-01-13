@@ -4,7 +4,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from '@/components/theme-provider';
 
 export const metadata: Metadata = {
-  title: 'KeepSync - Convert Google Keep to Obsidian',
+  title: 'KeepToMD - Convert Google Keep to Obsidian',
   description: 'Effortlessly convert your Google Keep notes to Obsidian-compatible Markdown.',
 };
 

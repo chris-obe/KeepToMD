@@ -3,6 +3,7 @@
 
 import { useEffect, useSyncExternalStore } from 'react';
 import { type NamingOptions, type FormattingOptions } from '@/ai/schemas';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 
 export type NamingPreset = {
   name: string;
@@ -114,17 +115,17 @@ const reducer = (state: PresetsState, action: Action): PresetsState => {
                 newPresets = [...state.namingPresets, newPreset];
             }
             try {
-                localStorage.setItem('keepSyncNamingPresets', JSON.stringify(newPresets));
-                localStorage.setItem('keepSyncLastNamingPreset', name);
+                localStorage.setItem(STORAGE_KEYS.namingPresets, JSON.stringify(newPresets));
+                localStorage.setItem(STORAGE_KEYS.lastNamingPreset, name);
             } catch (error) { console.error("Failed to save naming presets", error); }
             return { ...state, namingPresets: newPresets, selectedNamingPreset: name };
         }
         case 'DELETE_NAMING_PRESET': {
             const newPresets = state.namingPresets.filter(p => p.name !== action.payload);
             try {
-                localStorage.setItem('keepSyncNamingPresets', JSON.stringify(newPresets));
+                localStorage.setItem(STORAGE_KEYS.namingPresets, JSON.stringify(newPresets));
                 if (state.selectedNamingPreset === action.payload) {
-                    localStorage.removeItem('keepSyncLastNamingPreset');
+                    localStorage.removeItem(STORAGE_KEYS.lastNamingPreset);
                     return { ...state, namingPresets: newPresets, selectedNamingPreset: '', namingOptions: initialNamingOptions };
                 }
             } catch (error) { console.error("Failed to delete naming preset", error); }
@@ -133,12 +134,12 @@ const reducer = (state: PresetsState, action: Action): PresetsState => {
         case 'SELECT_NAMING_PRESET': {
             const name = action.payload;
             if (name === 'default' || !name) {
-                try { localStorage.removeItem('keepSyncLastNamingPreset'); } catch (e) {}
+                try { localStorage.removeItem(STORAGE_KEYS.lastNamingPreset); } catch (e) {}
                 return { ...state, selectedNamingPreset: '', namingOptions: initialNamingOptions };
             }
             const preset = state.namingPresets.find(p => p.name === name);
             if (preset) {
-                try { localStorage.setItem('keepSyncLastNamingPreset', name); } catch (e) {}
+                try { localStorage.setItem(STORAGE_KEYS.lastNamingPreset, name); } catch (e) {}
                 return { ...state, selectedNamingPreset: name, namingOptions: preset.options };
             }
             return state;
@@ -156,17 +157,17 @@ const reducer = (state: PresetsState, action: Action): PresetsState => {
                 newPresets = [...state.markdownPresets, newPreset];
             }
             try {
-                localStorage.setItem('keepSyncMarkdownPresets', JSON.stringify(newPresets));
-                localStorage.setItem('keepSyncLastMarkdownPreset', name);
+                localStorage.setItem(STORAGE_KEYS.markdownPresets, JSON.stringify(newPresets));
+                localStorage.setItem(STORAGE_KEYS.lastMarkdownPreset, name);
             } catch (error) { console.error("Failed to save markdown presets", error); }
             return { ...state, markdownPresets: newPresets, selectedMarkdownPreset: name };
         }
         case 'DELETE_MARKDOWN_PRESET': {
             const newPresets = state.markdownPresets.filter(p => p.name !== action.payload);
             try {
-                localStorage.setItem('keepSyncMarkdownPresets', JSON.stringify(newPresets));
+                localStorage.setItem(STORAGE_KEYS.markdownPresets, JSON.stringify(newPresets));
                 if (state.selectedMarkdownPreset === action.payload) {
-                    localStorage.removeItem('keepSyncLastMarkdownPreset');
+                    localStorage.removeItem(STORAGE_KEYS.lastMarkdownPreset);
                     return { ...state, markdownPresets: newPresets, selectedMarkdownPreset: '', formattingOptions: initialFormattingOptions };
                 }
             } catch (error) { console.error("Failed to delete markdown preset", error); }
@@ -175,12 +176,12 @@ const reducer = (state: PresetsState, action: Action): PresetsState => {
         case 'SELECT_MARKDOWN_PRESET': {
             const name = action.payload;
             if (name === 'default' || !name) {
-                try { localStorage.removeItem('keepSyncLastMarkdownPreset'); } catch (e) {}
+                try { localStorage.removeItem(STORAGE_KEYS.lastMarkdownPreset); } catch (e) {}
                 return { ...state, selectedMarkdownPreset: '', formattingOptions: initialFormattingOptions };
             }
             const preset = state.markdownPresets.find(p => p.name === name);
             if (preset) {
-                try { localStorage.setItem('keepSyncLastMarkdownPreset', name); } catch (e) {}
+                try { localStorage.setItem(STORAGE_KEYS.lastMarkdownPreset, name); } catch (e) {}
                 return { ...state, selectedMarkdownPreset: name, formattingOptions: preset.options };
             }
             return state;
@@ -214,20 +215,20 @@ export const usePresets = () => {
     
     useEffect(() => {
         try {
-            const savedNamingPresets = localStorage.getItem('keepSyncNamingPresets');
+            const savedNamingPresets = localStorage.getItem(STORAGE_KEYS.namingPresets);
             if (savedNamingPresets) {
                 dispatch({ type: 'SET_NAMING_PRESETS', payload: JSON.parse(savedNamingPresets) as NamingPreset[] });
             }
-            const lastNamingPreset = localStorage.getItem('keepSyncLastNamingPreset');
+            const lastNamingPreset = localStorage.getItem(STORAGE_KEYS.lastNamingPreset);
             if (lastNamingPreset) {
                 dispatch({ type: 'SELECT_NAMING_PRESET', payload: lastNamingPreset });
             }
 
-            const savedMarkdownPresets = localStorage.getItem('keepSyncMarkdownPresets');
+            const savedMarkdownPresets = localStorage.getItem(STORAGE_KEYS.markdownPresets);
             if (savedMarkdownPresets) {
                 dispatch({ type: 'SET_MARKDOWN_PRESETS', payload: JSON.parse(savedMarkdownPresets) as MarkdownPreset[] });
             }
-            const lastMarkdownPreset = localStorage.getItem('keepSyncLastMarkdownPreset');
+            const lastMarkdownPreset = localStorage.getItem(STORAGE_KEYS.lastMarkdownPreset);
             if (lastMarkdownPreset) {
                 dispatch({ type: 'SELECT_MARKDOWN_PRESET', payload: lastMarkdownPreset });
             }

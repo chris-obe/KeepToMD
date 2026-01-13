@@ -2,14 +2,13 @@
 
 "use client";
 
-import { useState, useRef, type ChangeEvent, useEffect } from 'react';
+import { useState, useRef, type ChangeEvent, useEffect, useMemo } from 'react';
 import {
   Upload,
   Folder,
   Cog,
   FileText,
   Eye,
-  Settings,
   Info,
   Minus,
   Plus,
@@ -18,25 +17,16 @@ import {
   ShieldCheck,
   ChevronRight,
   FileArchive,
-  Smile,
   Save,
   Trash2,
-  History,
   AlertTriangle,
-  FileSignature,
   CalendarDays,
   Clock,
   Pencil,
-  Type,
+  EyeOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
@@ -48,14 +38,12 @@ import {
 } from '@/components/ui/select';
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 
 import { Label } from '@/components/ui/label';
@@ -71,163 +59,22 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import type { ConvertToMarkdownOutput, FormattingOptions, NamingOptions } from '@/ai/schemas';
-import * as cheerio from 'cheerio';
+import type { ConvertToMarkdownOutput } from '@/ai/schemas';
 import { format } from 'date-fns';
-import TurndownService from 'turndown';
 import JSZip from 'jszip';
 import { Input } from '../ui/input';
 import CryptoJS from 'crypto-js';
 import { usePresets } from '@/hooks/use-presets';
+import {
+  buildFilename,
+  buildFilenamePreview,
+  formatMarkdown,
+  parseKeepHtml,
+  type ParsedKeepNote,
+} from '@/lib/keep-convert';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 
 
-const turndownService = new TurndownService();
-
-// --- Conversion Logic Moved from Server to Client ---
-
-/**
- * Parses a single HTML file content from Google Keep.
- */
-function parseKeepHtml(htmlContent: string) {
-  const $ = cheerio.load(htmlContent);
-
-  const title = $('.title').text().trim() || null;
-  const creationTimeText = $('.heading').text().trim();
-  
-  let creationTime = new Date(); // Default to now if parsing fails
-  if (creationTimeText) {
-    try {
-      // The date format is like "Mon, 23 Oct 2023, 19:54:15 UTC"
-      const parsedDate = new Date(creationTimeText.replace(/, /g, ' '));
-      if (!isNaN(parsedDate.getTime())) {
-        creationTime = parsedDate;
-      }
-    } catch (e) {
-      console.error(`Could not parse date: ${creationTimeText}`);
-    }
-  }
-
-  const tags = $('.chips .label-name').map((i, el) => $(el).text().trim()).get();
-  const contentHtml = $('.content').html() || '';
-  const content = turndownService.turndown(contentHtml);
-
-  const attachments = $('.attachments img').map((i, el) => $(el).attr('src')).get();
-
-  return {
-    title,
-    creationTime,
-    tags,
-    content,
-    attachments,
-  };
-}
-
-function formatTag(tag: string, format: 'links' | 'hash' | 'atlinks'): string {
-    switch (format) {
-        case 'links':
-            return `[[${tag}]]`;
-        case 'hash':
-            return `#${tag.replace(/\s+/g, '-')}`;
-        case 'atlinks':
-            return `@${tag}`;
-    }
-}
-
-/**
- * Converts extracted data into Markdown format.
- */
-function formatMarkdown(data: ReturnType<typeof parseKeepHtml>, formattingOptions: FormattingOptions) {
-  const markdown = [];
-  markdown.push(`# ${data.title || 'Untitled'}\n`);
-  markdown.push(`**Created:** ${format(data.creationTime, 'yyyy-MM-dd HH:mm:ss')}\n`);
-  if (data.tags.length > 0) {
-    const formattedTags = data.tags.map(tag => formatTag(tag, formattingOptions.tagHandling));
-    markdown.push(`**Tags:** ${formattedTags.join(' ')}\n`);
-  }
-  markdown.push(`${data.content}\n`);
-  if (data.attachments.length > 0) {
-    for (const attachment of data.attachments) {
-      const filename = attachment.split('/').pop();
-      markdown.push(`![[${filename}]]`);
-    }
-  }
-  return markdown.join('\n');
-}
-
-/**
- * Creates the filename for the markdown file.
- */
-function createFilename(data: ReturnType<typeof parseKeepHtml>, options: NamingOptions, serial: number): string {
-  const parts: string[] = [];
-  const now = new Date();
-
-  const emojiPart = options.useEmoji ? options.selectedEmoji : '';
-
-  const datePart = options.useDate ? format(data.creationTime, options.dateFormat) : '';
-  const timePart = options.useTime ? format(now, options.timeFormat) : '';
-  let dateTimePart = [datePart, timePart].filter(Boolean).join('_');
-  
-  let effectiveEmojiPosition = options.emojiPosition;
-  if (!options.useDate) {
-    effectiveEmojiPosition = 'afterTitle';
-  }
-
-  if (dateTimePart && options.datePosition === 'prepend') {
-      if (options.useEmoji && effectiveEmojiPosition === 'beforeDate') {
-          dateTimePart = `${emojiPart} ${dateTimePart}`;
-      }
-      if (options.useEmoji && effectiveEmojiPosition === 'afterDate') {
-          dateTimePart = `${dateTimePart} ${emojiPart}`;
-      }
-      parts.unshift(dateTimePart);
-  }
-
-  let titlePart = '';
-  if (options.useTitle && data.title) {
-    titlePart = data.title;
-  } else if (options.useBody && !data.title) {
-    const cleanContent = data.content.replace(/\s+/g, ' ').trim();
-    let snippet = '';
-    if (options.bodyUnit === 'characters') {
-      snippet = cleanContent.substring(0, options.bodyLength);
-    } else if (options.bodyUnit === 'words') {
-      snippet = cleanContent.split(/\s+/).slice(0, options.bodyLength).join(' ');
-    } else { // lines
-      snippet = data.content.split('\n').slice(0, options.bodyLength).join(' ').replace(/\s+/g, ' ').trim();
-    }
-    titlePart = snippet;
-  }
-  
-  if (!titlePart) {
-      titlePart = options.fillerText || 'Untitled';
-  }
-
-  titlePart = titlePart.replace(/[\\/]/g, '-'); // Sanitize
-
-  if (options.useEmoji && effectiveEmojiPosition === 'afterTitle') {
-      titlePart = `${titlePart} ${emojiPart}`;
-  }
-  parts.push(titlePart);
-
-  if (dateTimePart && options.datePosition === 'append') {
-      if (options.useEmoji && effectiveEmojiPosition === 'beforeDate') {
-          dateTimePart = `${emojiPart} ${emojiPart}`;
-      }
-      if (options.useEmoji && effectiveEmojiPosition === 'afterDate') {
-          dateTimePart = `${dateTimePart} ${emojiPart}`;
-      }
-      parts.push(dateTimePart);
-  }
-
-  if (options.useSerial && options.useDate) {
-    const padding = parseInt(options.serialPadding, 10).toString().length;
-    parts.push(serial.toString().padStart(padding, '0'));
-  }
-
-  return parts.join(' - ').replace(/\s+/g, ' ').trim() + '.md';
-}
-
-// --- End of Moved Conversion Logic ---
 
 
 
@@ -269,6 +116,10 @@ export function FileProcessingArea() {
   const [firstNoteTitle, setFirstNoteTitle] = useState<string>('My Note Title');
   const [filenamePreview, setFilenamePreview] = useState<string>('');
   const [presetNameToSave, setPresetNameToSave] = useState('');
+  const [isLivePreviewOpen, setLivePreviewOpen] = useState(false);
+  const [previewNote, setPreviewNote] = useState<ParsedKeepNote | null>(null);
+  const [isPreviewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   const {
     namingPresets,
@@ -301,11 +152,23 @@ export function FileProcessingArea() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleOpenFilePicker = () => {
+      fileInputRef.current?.click();
+    };
+
+    window.addEventListener('keep-sync-open-file-picker', handleOpenFilePicker);
+    return () => {
+      window.removeEventListener('keep-sync-open-file-picker', handleOpenFilePicker);
+    };
+  }, []);
+
   // --- History Management ---
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        const savedHistory = localStorage.getItem('keepSyncHistory');
+        const savedHistory = localStorage.getItem(STORAGE_KEYS.history);
         if (savedHistory) {
           setRunHistory(JSON.parse(savedHistory));
         }
@@ -323,7 +186,7 @@ export function FileProcessingArea() {
     };
     const updatedHistory = [runToAdd, ...runHistory];
     setRunHistory(updatedHistory);
-    localStorage.setItem('keepSyncHistory', JSON.stringify(updatedHistory));
+    localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(updatedHistory));
   };
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -337,6 +200,7 @@ export function FileProcessingArea() {
         const htmls = selectedFiles.filter(file => file.type === 'text/html');
         setHtmlFiles(htmls);
         setAssetFiles(selectedFiles.filter(file => file.type !== 'text/html'));
+        setLivePreviewOpen(htmls.length > 0);
         setConvertedFiles([]); // Reset on new file selection
         setProgress(0);
         
@@ -359,12 +223,11 @@ export function FileProcessingArea() {
         reader.onload = (e) => {
             const content = e.target?.result as string;
             if (!content) return;
-            const $ = cheerio.load(content);
-            const title = $('.title').text().trim();
-            if (title) {
-                setFirstNoteTitle(title);
+            const data = parseKeepHtml(content);
+            if (data.title) {
+              setFirstNoteTitle(data.title);
             } else {
-                setFirstNoteTitle('Untitled Note');
+              setFirstNoteTitle('Untitled Note');
             }
         };
         reader.readAsText(htmlFiles[0]);
@@ -372,6 +235,46 @@ export function FileProcessingArea() {
         setFirstNoteTitle('My Note Title');
     }
   }, [htmlFiles]);
+
+  useEffect(() => {
+    if (htmlFiles.length === 0) {
+      setPreviewNote(null);
+      setPreviewError(null);
+      setPreviewLoading(false);
+      return;
+    }
+
+    let isActive = true;
+    setPreviewLoading(true);
+    setPreviewError(null);
+
+    htmlFiles[0]
+      .text()
+      .then((content) => {
+        if (!isActive) return;
+        setPreviewNote(parseKeepHtml(content));
+      })
+      .catch((error) => {
+        if (!isActive) return;
+        setPreviewNote(null);
+        setPreviewError(error instanceof Error ? error.message : 'Unable to load preview.');
+      })
+      .finally(() => {
+        if (!isActive) return;
+        setPreviewLoading(false);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [htmlFiles]);
+
+  // Motion effects intentionally disabled for now.
+
+  const previewMarkdown = useMemo(() => {
+    if (!previewNote) return '';
+    return formatMarkdown(previewNote, formattingOptions);
+  }, [previewNote, formattingOptions]);
   
   const startConversion = (files: File[], isPreview: boolean) => {
     if(isPreview) {
@@ -460,7 +363,7 @@ export function FileProcessingArea() {
         const data = parseKeepHtml(fileContent);
         
         const markdownContent = formatMarkdown(data, formattingOptions);
-        const newFilename = createFilename(data, namingOptions, i + 1);
+        const newFilename = buildFilename({ note: data, options: namingOptions, serial: i + 1 });
   
         newlyConvertedFiles.push({
           originalPath: file.name,
@@ -559,7 +462,7 @@ export function FileProcessingArea() {
     const url = URL.createObjectURL(zipBlob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'KeepSync-Export.zip';
+    a.download = 'KeepToMD-Export.zip';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -572,84 +475,12 @@ export function FileProcessingArea() {
     if (typeof window === 'undefined') return;
   
     const getFilenamePreview = () => {
-      const parts: string[] = [];
-      const now = new Date();
-      const emojiPart = namingOptions.useEmoji ? namingOptions.selectedEmoji : '';
-  
-      const datePart = namingOptions.useDate ? format(now, namingOptions.dateFormat) : '';
-      const timePart = namingOptions.useTime ? format(now, namingOptions.timeFormat) : '';
-      let dateTimePart = [datePart, timePart].filter(Boolean).join('_');
-  
-      let effectiveEmojiPosition = namingOptions.emojiPosition;
-      if (!namingOptions.useDate) {
-        effectiveEmojiPosition = 'afterTitle';
-      }
-  
-      if (dateTimePart && namingOptions.datePosition === 'prepend') {
-        if (namingOptions.useEmoji && effectiveEmojiPosition === 'beforeDate') {
-          dateTimePart = `${emojiPart} ${dateTimePart}`;
-        }
-        if (namingOptions.useEmoji && effectiveEmojiPosition === 'afterDate') {
-          dateTimePart = `${dateTimePart} ${emojiPart}`;
-        }
-        parts.push(dateTimePart);
-      }
-  
-      let titlePart = '';
-      if (namingOptions.useTitle && firstNoteTitle !== 'My Note Title') {
-        titlePart = firstNoteTitle;
-      } else if (namingOptions.useBody) {
-        const bodyContent = "This is the beginning of the note content and it can be quite long.";
-        let bodySnippet = "";
-        switch (namingOptions.bodyUnit) {
-          case 'characters':
-            bodySnippet = bodyContent.substring(0, namingOptions.bodyLength);
-            break;
-          case 'words':
-            bodySnippet = bodyContent.split(/\s+/).slice(0, namingOptions.bodyLength).join(' ');
-            break;
-          case 'lines':
-            bodySnippet = bodyContent.split('\n').slice(0, namingOptions.bodyLength).join(' ');
-            break;
-        }
-        titlePart = bodySnippet;
-      }
-      
-      if (!titlePart) {
-        titlePart = namingOptions.fillerText || "My Note Title";
-      }
-      
-      if (titlePart) {
-        if (namingOptions.useEmoji && effectiveEmojiPosition === 'afterTitle') {
-          titlePart = `${titlePart} ${emojiPart}`;
-        }
-        parts.push(titlePart);
-      }
-      
-      if (dateTimePart && namingOptions.datePosition === 'append') {
-        if (namingOptions.useEmoji && effectiveEmojiPosition === 'beforeDate') {
-          dateTimePart = `${emojiPart} ${emojiPart}`;
-        }
-        if (namingOptions.useEmoji && effectiveEmojiPosition === 'afterDate') {
-          dateTimePart = `${dateTimePart} ${emojiPart}`;
-        }
-        parts.push(dateTimePart);
-      }
-      
-      if (namingOptions.useSerial && namingOptions.useDate) {
-        let serial = '1';
-        if (namingOptions.serialPadding === '01') serial = '01';
-        if (namingOptions.serialPadding === '001') serial = '001';
-        if (namingOptions.serialPadding === '0001') serial = '0001';
-        parts.push(serial);
-      }
-  
-      let preview = parts.join(' - ').replace(/\s+/g, ' ').trim();
-      if (!preview) {
-        preview = namingOptions.fillerText || "Untitled";
-      }
-  
-      setFilenamePreview(preview + '.md');
+      const preview = buildFilenamePreview({
+        options: namingOptions,
+        firstNoteTitle,
+        bodyPreview: 'This is the beginning of the note content and it can be quite long.',
+      });
+      setFilenamePreview(preview);
     };
   
     getFilenamePreview();
@@ -701,8 +532,79 @@ export function FileProcessingArea() {
     setPresetNameToSave('');
   };
 
+  const renderMarkdownPresetSelect = (
+    label: string,
+    triggerClassName?: string,
+    placeholder = 'Select a preset...',
+  ) => (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      <Select onValueChange={handleSelectMarkdownPreset} value={selectedMarkdownPreset}>
+        <SelectTrigger className={triggerClassName}>
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="default">Default Settings</SelectItem>
+          <Separator className="my-1" />
+          {markdownPresets.map(p => (
+            <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+
+  const livePreviewPanel = (
+    <div className="rounded-lg border bg-card/70 min-[769px]:sticky min-[769px]:top-20 min-[769px]:flex min-[769px]:h-[calc(100svh-6rem)] min-[769px]:flex-col">
+      <div className="flex items-center justify-between gap-2 border-b bg-muted/30 px-4 py-3">
+        <div>
+          <p className="text-sm font-semibold text-foreground">Live Preview</p>
+          <p className="text-xs text-muted-foreground">
+            {htmlFiles.length > 0 ? `First note: ${htmlFiles[0].name}` : 'Select a takeout folder to preview.'}
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => setLivePreviewOpen(false)}
+          aria-label="Hide live preview"
+          title="Hide live preview"
+        >
+          <EyeOff className="h-4 w-4" />
+        </Button>
+      </div>
+      <div className="space-y-3 px-4 pt-3">
+        {renderMarkdownPresetSelect('Markdown Preset')}
+        <p className="text-xs text-muted-foreground">
+          Output name: <span className="font-medium text-foreground">{filenamePreview}</span>
+        </p>
+      </div>
+      <div className="p-4 pt-3 min-[769px]:flex-1 min-[769px]:min-h-0">
+        <ScrollArea className="h-[320px] min-[769px]:h-full">
+          {isPreviewLoading && (
+            <p className="text-sm text-muted-foreground">Loading preview...</p>
+          )}
+          {!isPreviewLoading && previewError && (
+            <p className="text-sm text-destructive">{previewError}</p>
+          )}
+          {!isPreviewLoading && !previewError && previewMarkdown && (
+            <div className="prose dark:prose-invert max-w-none prose-p:my-2 prose-h1:mb-4 prose-h1:mt-2 prose-h2:mb-3 prose-h2:mt-1.5 prose-h3:mb-2 prose-h3:mt-1 font-body text-foreground">
+              {renderMarkdownContent(previewMarkdown)}
+            </div>
+          )}
+          {!isPreviewLoading && !previewError && !previewMarkdown && (
+            <p className="text-sm text-muted-foreground">
+              Select a Google Takeout folder to see a live preview.
+            </p>
+          )}
+        </ScrollArea>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="w-full max-w-4xl animate-in fade-in-50 duration-500 space-y-4">
+    <div className="w-full max-w-6xl animate-in fade-in-50 duration-500 space-y-4">
       <input
         type="file"
         ref={fileInputRef}
@@ -737,486 +639,480 @@ export function FileProcessingArea() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Import Section */}
-      <Card>
-        <CardHeader className="bg-primary/10">
-          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-            <Upload className="h-5 w-5 text-primary" />
-            <span>Import</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6 pt-4">
-          <div className="space-y-4">
-            <Button
-              variant="outline"
-              className="w-full justify-start h-12 text-base"
-              onClick={() => fileInputRef.current?.click()}
+      <div
+        className={`space-y-4 min-[769px]:items-start min-[769px]:gap-6 min-[769px]:space-y-0 min-[769px]:grid ${
+          isLivePreviewOpen ? 'min-[769px]:grid-cols-2' : 'min-[769px]:grid-cols-1'
+        }`}
+      >
+        <div className="space-y-4 min-[769px]:col-span-1">
+          {!isLivePreviewOpen && (
+            <div className="hidden min-[769px]:flex justify-end">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setLivePreviewOpen(true)}
+                aria-label="Show live preview"
+                title="Show live preview"
               >
-              <Folder className="mr-2 h-5 w-5" />
-              {allFiles.length > 0 ? `${allFiles.length} file(s) selected` : 'Select Google Takeout Folder'}
-            </Button>
-            {allFiles.length > 0 && (
-              <div className="text-sm text-muted-foreground">
-                  <p>{htmlFiles.length} HTML notes found.</p>
-                  <p>{assetFiles.length} other assets (images, audio, etc.) found.</p>
-              </div>
-            )}
-            <div className="flex items-center gap-2 rounded-lg bg-background/50 p-3 text-sm text-muted-foreground">
-              <ShieldCheck className="h-5 w-5 shrink-0 text-accent" />
-              <p>Your files are processed locally in your browser and never leave your device.</p>
+                <Eye className="h-4 w-4" />
+              </Button>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          )}
 
-      {/* Process Section */}
-      <Card>
-        <CardHeader className="bg-accent/10">
-          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-            <Cog className="h-5 w-5 text-accent" />
-            <span>Process</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6 space-y-4">
-           <Accordion type="multiple" defaultValue={['item-1', 'item-2']} className="w-full space-y-4">
-            <Card className="bg-background/50 overflow-hidden">
-                <AccordionItem value="item-1" className="border-b-0">
-                    <div className="px-6 py-4 space-y-4">
-                      <AccordionTrigger className="text-base font-semibold hover:no-underline [&[data-state=open]>svg]:-rotate-180 p-0">
-                          <div className="flex items-center gap-2">
-                             <FileSignature className="h-5 w-5 text-yellow-400" />
-                              File Name Configuration
-                          </div>
-                      </AccordionTrigger>
-                      <div className="space-y-2">
-                        <Label>Load Naming Preset</Label>
-                        <div className="flex gap-2">
-                          <Select onValueChange={handleSelectNamingPreset} value={selectedNamingPreset}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select a preset..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="default">Default Settings</SelectItem>
-                              <Separator className="my-1" />
-                              {namingPresets.map(p => (
-                                <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {selectedNamingPreset && selectedNamingPreset !== 'default' && (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button variant="destructive" size="icon" onClick={() => handleDeleteNamingPreset(selectedNamingPreset)}>
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Delete '{selectedNamingPreset}' preset</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
-                        </div>
-                      </div>
+          {/* Step 1: Import + Live Preview */}
+          <Card>
+            <CardHeader className="bg-primary/10">
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                <Upload className="h-5 w-5 text-primary" />
+                <span>Step 1: Import</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 pt-4 space-y-6">
+              <div className="space-y-4">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start h-12 text-base"
+                  onClick={() => fileInputRef.current?.click()}
+                  >
+                  <Folder className="mr-2 h-5 w-5" />
+                  {allFiles.length > 0 ? `${allFiles.length} file(s) selected` : 'Select Google Takeout Folder'}
+                </Button>
+                {allFiles.length > 0 && (
+                  <div className="text-sm text-muted-foreground">
+                      <p>{htmlFiles.length} HTML notes found.</p>
+                      <p>{assetFiles.length} other assets (images, audio, etc.) found.</p>
+                  </div>
+                )}
+                <div className="flex items-center gap-2 rounded-lg bg-background/50 p-3 text-sm text-muted-foreground">
+                  <ShieldCheck className="h-5 w-5 shrink-0 text-accent" />
+                  <p>Your files are processed locally in your browser and never leave your device.</p>
+                </div>
+              </div>
+
+              {isLivePreviewOpen && (
+                <div className="min-[769px]:hidden">
+                  {livePreviewPanel}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Step 2: File Name Configuration */}
+          <Card>
+            <CardHeader className="bg-accent/10">
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                <Cog className="h-5 w-5 text-accent" />
+                <span>Step 2: File Name Configuration</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+              <div className="space-y-2">
+                <Label>Load Naming Preset</Label>
+                <div className="flex gap-2">
+                  <Select onValueChange={handleSelectNamingPreset} value={selectedNamingPreset}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a preset..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Default Settings</SelectItem>
+                      <Separator className="my-1" />
+                      {namingPresets.map(p => (
+                        <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedNamingPreset && selectedNamingPreset !== 'default' && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button variant="destructive" size="icon" onClick={() => handleDeleteNamingPreset(selectedNamingPreset)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Delete '{selectedNamingPreset}' preset</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
+                <div className="flex items-center space-x-2">
+                    <Checkbox id="title" checked={namingOptions.useTitle} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useTitle: !!checked }))} />
+                    <Label htmlFor="title">Use note title</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                    <Checkbox id="body" checked={namingOptions.useBody} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useBody: !!checked }))} />
+                    <Label htmlFor="body" className="flex items-center">
+                      Use note body if no title
+                      <InfoTooltip>Use the first part of the body as a fallback if the note has no title.</InfoTooltip>
+                    </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                    <Checkbox id="emoji" checked={namingOptions.useEmoji} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useEmoji: !!checked }))} />
+                    <Label htmlFor="emoji">Add emoji</Label>
+                </div>
+              </div>
+
+              {isFillerTextActive && (
+                <div className="space-y-2 pt-4 border-t border-border pl-6">
+                  <Label htmlFor="filler-text" className="font-semibold flex items-center gap-2">
+                    <Pencil className="h-4 w-4" />
+                    Fallback title text
+                  </Label>
+                  <Input
+                    id="filler-text"
+                    placeholder="Untitled Note"
+                    value={namingOptions.fillerText}
+                    onChange={(e) => setNamingOptions(p => ({...p, fillerText: e.target.value}))}
+                  />
+                  <p className="text-xs text-muted-foreground">This text will be used if a title cannot be generated from the note's title or body content.</p>
+                </div>
+              )}
+
+
+              {namingOptions.useBody && (
+              <div className="space-y-4 pt-4 border-t border-border pl-6">
+                  <Label className="font-semibold">Title from body options</Label>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setNamingOptions(p => ({ ...p, bodyLength: Math.max(1, p.bodyLength - 1) }))}><Minus className="h-4 w-4"/></Button>
+                      <span className="w-8 text-center text-sm">{namingOptions.bodyLength}</span>
+                      <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setNamingOptions(p => ({ ...p, bodyLength: p.bodyLength + 1 }))}><Plus className="h-4 w-4"/></Button>
                     </div>
-                    <AccordionContent className="px-6 pb-6 pt-0 space-y-4">
-                        <div className="flex flex-wrap items-center gap-x-6 gap-y-4 pt-4">
-                            <div className="flex items-center space-x-2">
-                                <Checkbox id="title" checked={namingOptions.useTitle} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useTitle: !!checked }))} />
-                                <Label htmlFor="title">Use note title</Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <Checkbox id="body" checked={namingOptions.useBody} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useBody: !!checked }))} />
-                                <Label htmlFor="body" className="flex items-center">
-                                  Use note body if no title
-                                  <InfoTooltip>Use the first part of the body as a fallback if the note has no title.</InfoTooltip>
-                                </Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <Checkbox id="emoji" checked={namingOptions.useEmoji} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useEmoji: !!checked }))} />
-                                <Label htmlFor="emoji">Add emoji</Label>
-                            </div>
+                    <RadioGroup value={namingOptions.bodyUnit} onValueChange={handleBodyUnitChange} className="flex flex-wrap gap-x-4 gap-y-2">
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="characters" id="characters" />
+                            <Label htmlFor="characters">characters</Label>
                         </div>
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="words" id="words" />
+                            <Label htmlFor="words">words</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="lines" id="lines" />
+                            <Label htmlFor="lines">lines</Label>
+                        </div>
+                    </RadioGroup>
+                  </div>
+              </div>
+              )}
 
-                        {isFillerTextActive && (
-                          <div className="space-y-2 pt-4 border-t border-border pl-6">
-                            <Label htmlFor="filler-text" className="font-semibold flex items-center gap-2">
-                              <Pencil className="h-4 w-4" />
-                              Fallback title text
-                            </Label>
-                            <Input
-                              id="filler-text"
-                              placeholder="Untitled Note"
-                              value={namingOptions.fillerText}
-                              onChange={(e) => setNamingOptions(p => ({...p, fillerText: e.target.value}))}
-                            />
-                            <p className="text-xs text-muted-foreground">This text will be used if a title cannot be generated from the note's title or body content.</p>
-                          </div>
-                        )}
-
-
-                        {namingOptions.useBody && (
-                        <div className="space-y-4 pt-4 border-t border-border pl-6">
-                            <Label className="font-semibold">Title from body options</Label>
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              {namingOptions.useEmoji && (
+                  <div className="space-y-4 pt-4 border-t border-border pl-6">
+                      <div className="space-y-2">
+                          <Label className="font-semibold">Emoji</Label>
+                          <RadioGroup value={namingOptions.selectedEmoji} onValueChange={(value) => setNamingOptions(p => ({...p, selectedEmoji: value}))} className="flex flex-wrap gap-x-4 gap-y-2">
                               <div className="flex items-center space-x-2">
-                                <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setNamingOptions(p => ({ ...p, bodyLength: Math.max(1, p.bodyLength - 1) }))}><Minus className="h-4 w-4"/></Button>
-                                <span className="w-8 text-center text-sm">{namingOptions.bodyLength}</span>
-                                <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setNamingOptions(p => ({ ...p, bodyLength: p.bodyLength + 1 }))}><Plus className="h-4 w-4"/></Button>
+                                  <RadioGroupItem value="🟡" id="e-1" />
+                                  <Label htmlFor="e-1">🟡</Label>
                               </div>
-                              <RadioGroup value={namingOptions.bodyUnit} onValueChange={handleBodyUnitChange} className="flex flex-wrap gap-x-4 gap-y-2">
-                                  <div className="flex items-center space-x-2">
-                                      <RadioGroupItem value="characters" id="characters" />
-                                      <Label htmlFor="characters">characters</Label>
-                                  </div>
-                                  <div className="flex items-center space-x-2">
-                                      <RadioGroupItem value="words" id="words" />
-                                      <Label htmlFor="words">words</Label>
-                                  </div>
-                                  <div className="flex items-center space-x-2">
-                                      <RadioGroupItem value="lines" id="lines" />
-                                      <Label htmlFor="lines">lines</Label>
-                                  </div>
-                              </RadioGroup>
-                            </div>
-                        </div>
-                        )}
-
-                        {namingOptions.useEmoji && (
-                            <div className="space-y-4 pt-4 border-t border-border pl-6">
-                                <div className="space-y-2">
-                                    <Label className="font-semibold">Emoji</Label>
-                                    <RadioGroup value={namingOptions.selectedEmoji} onValueChange={(value) => setNamingOptions(p => ({...p, selectedEmoji: value}))} className="flex flex-wrap gap-x-4 gap-y-2">
-                                        <div className="flex items-center space-x-2">
-                                            <RadioGroupItem value="🟡" id="e-1" />
-                                            <Label htmlFor="e-1">🟡</Label>
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                            <RadioGroupItem value="💡" id="e-2" />
-                                            <Label htmlFor="e-2">💡</Label>
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                            <RadioGroupItem value="✨" id="e-3" />
-                                            <Label htmlFor="e-3">✨</Label>
-                                        </div>
-                                    </RadioGroup>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="font-semibold">Emoji position</Label>
-                                    <RadioGroup 
-                                        value={namingOptions.emojiPosition} 
-                                        onValueChange={(value: 'beforeDate' | 'afterDate' | 'afterTitle') => setNamingOptions(prev => ({ ...prev, emojiPosition: value }))} 
-                                        className="flex flex-wrap gap-x-4 gap-y-2"
-                                    >
-                                        <div className="flex items-center space-x-2">
-                                            <RadioGroupItem value="beforeDate" id="ep-1" />
-                                            <Label htmlFor="ep-1">Before date</Label>
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                            <RadioGroupItem value="afterDate" id="ep-2" />
-                                            <Label htmlFor="ep-2">After date</Label>
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                            <RadioGroupItem value="afterTitle" id="ep-3" />
-                                            <Label htmlFor="ep-3">After title</Label>
-                                        </div>
-                                    </RadioGroup>
-                                </div>
-                            </div>
-                        )}
-                        
-                        <div className="space-y-4 pt-4 border-t">
-                          <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
-                              <div className="flex items-center gap-2">
-                                  <Checkbox id="date" checked={namingOptions.useDate} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useDate: !!checked, useSerial: checked ? prev.useSerial : false }))} />
-                                  <Label htmlFor="date" className="flex items-center gap-1"><CalendarDays className="h-4 w-4" /> Add date</Label>
+                              <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="💡" id="e-2" />
+                                  <Label htmlFor="e-2">💡</Label>
                               </div>
-                              <div className="flex items-center gap-2">
-                                  <Checkbox id="time" checked={namingOptions.useTime} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useTime: !!checked }))}/>
-                                  <Label htmlFor="time" className="flex items-center gap-1"><Clock className="h-4 w-4" /> Add time</Label>
+                              <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="✨" id="e-3" />
+                                  <Label htmlFor="e-3">✨</Label>
                               </div>
-                          </div>
-                          
-                          {(namingOptions.useDate || namingOptions.useTime) && (
-                          <div className="space-y-4 pt-4 border-t border-border pl-6">
-                              {namingOptions.useDate && (
-                                  <div className="space-y-2">
-                                      <Label className="font-semibold">Date format</Label>
-                                      <RadioGroup value={namingOptions.dateFormat} onValueChange={(value) => setNamingOptions(p => ({...p, dateFormat: value}))} className="flex flex-wrap gap-x-4 gap-y-2">
-                                          <div className="flex items-center space-x-2">
-                                              <RadioGroupItem value="yyyy-MM-dd" id="df-1" />
-                                              <Label htmlFor="df-1">2024-07-29</Label>
-                                          </div>
-                                          <div className="flex items-center space-x-2">
-                                              <RadioGroupItem value="dd-MM-yyyy" id="df-2" />
-                                              <Label htmlFor="df-2">29-07-2024</Label>                                    </div>
-                                          <div className="flex items-center space-x-2">
-                                              <RadioGroupItem value="MM-dd-yyyy" id="df-3" />
-                                              <Label htmlFor="df-3">07-29-2024</Label>
-                                          </div>
-                                          <div className="flex items-center space-x-2">
-                                              <RadioGroupItem value="yyyyMMdd" id="df-4" />
-                                              <Label htmlFor="df-4">20240729</Label>
-                                          </div>
-                                      </RadioGroup>
-                                  </div>
-                              )}
-                              {namingOptions.useTime && (
-                                <div className="space-y-2">
-                                      <Label className="font-semibold">Time format</Label>
-                                      <Select value={namingOptions.timeFormat} onValueChange={(value) => setNamingOptions(p => ({...p, timeFormat: value}))}>
-                                        <SelectTrigger className="w-auto h-8 text-sm">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="HH-mm-ss">14-30-55</SelectItem>
-                                            <SelectItem value="hh-mm-ss a">02-30-55 PM</SelectItem>
-                                            <SelectItem value="HHmmss">143055</SelectItem>
-                                        </SelectContent>
-                                      </Select>
-                                  </div>
-                              )}
-                              <div className="space-y-2">
-                                  <Label className="font-semibold">Date position</Label>
-                                  <RadioGroup value={namingOptions.datePosition} onValueChange={(value: 'prepend' | 'append') => setNamingOptions(prev => ({ ...prev, datePosition: value }))} className="flex flex-wrap gap-x-4 gap-y-2">
-                                      <div className="flex items-center space-x-2">
-                                          <RadioGroupItem value="prepend" id="prepend" />
-                                          <Label htmlFor="prepend">Prepend</Label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                          <RadioGroupItem value="append" id="append" />
-                                          <Label htmlFor="append">Append</Label>
-                                      </div>
-                                  </RadioGroup>
-                              </div>
-                          </div>
-                          )}
-                          
-                          <div className="space-y-2 pt-4 border-t">
-                              <div className="flex items-center gap-2">
-                                  <Checkbox id="serial" checked={namingOptions.useSerial} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useSerial: !!checked }))} disabled={!namingOptions.useDate} />
-                                  <Label htmlFor="serial" className={`flex items-center ${!namingOptions.useDate ? 'text-muted-foreground' : ''}`}>
-                                      Add serial number
-                                      <InfoTooltip>Serializes notes with matching dates to prevent filename conflicts. Requires 'Add date' to be enabled.</InfoTooltip>
-                                  </Label>
-                              </div>
-                              {namingOptions.useSerial && namingOptions.useDate && (
-                                  <div className="space-y-2 pl-6 pt-4 border-t">
-                                      <Label className="font-semibold">Serial number padding</Label>
-                                      <RadioGroup value={namingOptions.serialPadding} onValueChange={(value) => setNamingOptions(prev => ({ ...prev, serialPadding: value as '1' | '01' | '001' | '0001' }))} className="flex flex-wrap gap-x-4 gap-y-2">
-                                          <div className="flex items-center space-x-2">
-                                              <RadioGroupItem value="1" id="s1" />
-                                              <Label htmlFor="s1">1, 2, 3</Label>
-                                          </div>
-                                          <div className="flex items-center space-x-2">
-                                              <RadioGroupItem value="01" id="s01" />
-                                              <Label htmlFor="s01">01, 02, 03</Label>
-                                          </div>
-                                          <div className="flex items-center space-x-2">
-                                              <RadioGroupItem value="001" id="s001" />
-                                              <Label htmlFor="s001">001, 002, 003</Label>
-                                          </div>
-                                          <div className="flex items-center space-x-2">
-                                              <RadioGroupItem value="0001" id="s0001" />
-                                              <Label htmlFor="s0001">0001, 0002, 0003</Label>
-                                          </div>
-                                      </RadioGroup>
-                                  </div>
-                              )}
-                          </div>
-                        </div>
-
-                        <Separator />
-
-                        <div className="bg-secondary p-3 rounded-md text-sm text-muted-foreground flex items-center gap-2">
-                            <Eye className="h-4 w-4 text-primary shrink-0"/>
-                            <span className="truncate">{filenamePreview}</span>
-                        </div>
-                    </AccordionContent>
-                </AccordionItem>
-            </Card>
-
-            <Card className="bg-background/50 overflow-hidden">
-                <AccordionItem value="item-2" className="border-b-0">
-                    <div className="px-6 py-4 space-y-4">
-                      <AccordionTrigger className="text-base font-semibold hover:no-underline [&[data-state=open]>svg]:-rotate-180 p-0">
-                          <div className="flex items-center gap-2">
-                              <FileText className="mr-2 h-5 w-5 text-purple-400" />
-                              Markdown Formatting
-                          </div>
-                      </AccordionTrigger>
-                      <div className="space-y-2">
-                          <Label>Load Markdown Preset</Label>
-                          <div className="flex gap-2">
-                              <Select onValueChange={handleSelectMarkdownPreset} value={selectedMarkdownPreset}>
-                              <SelectTrigger>
-                                  <SelectValue placeholder="Select a preset..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                  <SelectItem value="default">Default Settings</SelectItem>
-                                  <Separator className="my-1" />
-                                  {markdownPresets.map(p => (
-                                  <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
-                                  ))}
-                              </SelectContent>
-                              </Select>
-                          </div>
+                          </RadioGroup>
                       </div>
+                      <div className="space-y-2">
+                          <Label className="font-semibold">Emoji position</Label>
+                          <RadioGroup 
+                              value={namingOptions.emojiPosition} 
+                              onValueChange={(value: 'beforeDate' | 'afterDate' | 'afterTitle') => setNamingOptions(prev => ({ ...prev, emojiPosition: value }))} 
+                              className="flex flex-wrap gap-x-4 gap-y-2"
+                          >
+                              <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="beforeDate" id="ep-1" />
+                                  <Label htmlFor="ep-1">Before date</Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="afterDate" id="ep-2" />
+                                  <Label htmlFor="ep-2">After date</Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="afterTitle" id="ep-3" />
+                                  <Label htmlFor="ep-3">After title</Label>
+                              </div>
+                          </RadioGroup>
+                      </div>
+                  </div>
+              )}
+              
+              <div className="space-y-4 pt-4 border-t">
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
+                    <div className="flex items-center gap-2">
+                        <Checkbox id="date" checked={namingOptions.useDate} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useDate: !!checked, useSerial: checked ? prev.useSerial : false }))} />
+                        <Label htmlFor="date" className="flex items-center gap-1"><CalendarDays className="h-4 w-4" /> Add date</Label>
                     </div>
-
-                    <AccordionContent className="px-6 pb-6 pt-0 space-y-4">
-                        <Separator className="mb-4"/>
+                    <div className="flex items-center gap-2">
+                        <Checkbox id="time" checked={namingOptions.useTime} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useTime: !!checked }))}/>
+                        <Label htmlFor="time" className="flex items-center gap-1"><Clock className="h-4 w-4" /> Add time</Label>
+                    </div>
+                </div>
+                
+                {(namingOptions.useDate || namingOptions.useTime) && (
+                <div className="space-y-4 pt-4 border-t border-border pl-6">
+                    {namingOptions.useDate && (
                         <div className="space-y-2">
-                            <Label className="font-semibold flex items-center">Tag handling <span className="ml-2 text-sm font-normal text-muted-foreground">relevant for Obsidian Graphs</span><InfoTooltip>Choose how to represent Google Keep tags in Obsidian.</InfoTooltip></Label>
-                            <RadioGroup value={formattingOptions.tagHandling} onValueChange={(value) => setFormattingOptions(prev => ({...prev, tagHandling: value as 'links' | 'hash' | 'atlinks'}))} className="flex flex-wrap gap-4 pt-2">
+                            <Label className="font-semibold">Date format</Label>
+                            <RadioGroup value={namingOptions.dateFormat} onValueChange={(value) => setNamingOptions(p => ({...p, dateFormat: value}))} className="flex flex-wrap gap-x-4 gap-y-2">
                                 <div className="flex items-center space-x-2">
-                                    <RadioGroupItem value="links" id="links" />
-                                    <Label htmlFor="links">Links (notes)</Label>
+                                    <RadioGroupItem value="yyyy-MM-dd" id="df-1" />
+                                    <Label htmlFor="df-1">2024-07-29</Label>
                                 </div>
                                 <div className="flex items-center space-x-2">
-                                    <RadioGroupItem value="hash" id="hash" />
-                                    <Label htmlFor="hash">#Hashtags</Label>
+                                    <RadioGroupItem value="dd-MM-yyyy" id="df-2" />
+                                    <Label htmlFor="df-2">29-07-2024</Label>                                    </div>
+                                <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="MM-dd-yyyy" id="df-3" />
+                                    <Label htmlFor="df-3">07-29-2024</Label>
                                 </div>
                                 <div className="flex items-center space-x-2">
-                                    <RadioGroupItem value="atlinks" id="atlinks" />
-                                    <Label htmlFor="atlinks">@Mentions</Label>
+                                    <RadioGroupItem value="yyyyMMdd" id="df-4" />
+                                    <Label htmlFor="df-4">20240729</Label>
                                 </div>
                             </RadioGroup>
                         </div>
-                    </AccordionContent>
-                </AccordionItem>
-            </Card>
-           </Accordion>
-           <Separator />
-            <div className="space-y-4 pt-4">
-                <div className="space-y-2">
-                    <Label htmlFor="preset-name-save">Save Current Naming Settings as Preset</Label>
-                    <div className="flex gap-2">
-                        <Input
-                        id="preset-name-save"
-                        placeholder="My Awesome Naming Preset"
-                        value={presetNameToSave}
-                        onChange={(e) => setPresetNameToSave(e.target.value)}
-                        />
-                        <Button onClick={onSavePreset}><Save className="mr-2 h-4 w-4" /> Save</Button>
+                    )}
+                    {namingOptions.useTime && (
+                      <div className="space-y-2">
+                            <Label className="font-semibold">Time format</Label>
+                            <Select value={namingOptions.timeFormat} onValueChange={(value) => setNamingOptions(p => ({...p, timeFormat: value}))}>
+                              <SelectTrigger className="w-auto h-8 text-sm">
+                                  <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                  <SelectItem value="HH-mm-ss">14-30-55</SelectItem>
+                                  <SelectItem value="hh-mm-ss a">02-30-55 PM</SelectItem>
+                                  <SelectItem value="HHmmss">143055</SelectItem>
+                              </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+                    <div className="space-y-2">
+                        <Label className="font-semibold">Date position</Label>
+                        <RadioGroup value={namingOptions.datePosition} onValueChange={(value: 'prepend' | 'append') => setNamingOptions(prev => ({ ...prev, datePosition: value }))} className="flex flex-wrap gap-x-4 gap-y-2">
+                            <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="prepend" id="prepend" />
+                                <Label htmlFor="prepend">Prepend</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="append" id="append" />
+                                <Label htmlFor="append">Append</Label>
+                            </div>
+                        </RadioGroup>
                     </div>
                 </div>
-                <Separator />
-                <Dialog>
-                    <DialogTrigger asChild>
-                        <Button id="preview-dialog-trigger" className="w-full" onClick={handlePreviewClick} disabled={isLoading || htmlFiles.length === 0}>
-                            {isLoading && convertedFiles.length === 0 ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Eye className="mr-2 h-5 w-5" />}
-                            {isLoading && convertedFiles.length === 0 ? 'Processing...' : 'Preview All Options'}
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
-                        <DialogHeader>
-                            <DialogTitle>Conversion Preview</DialogTitle>
-                            <div className="space-y-2 pt-2">
-                                <Label>Markdown Preset</Label>
-                                <Select onValueChange={handleSelectMarkdownPreset} value={selectedMarkdownPreset}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select a preset to preview..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="default">Default Settings</SelectItem>
-                                    <Separator className="my-1" />
-                                    {markdownPresets.map(p => (
-                                    <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
+                )}
+                
+                <div className="space-y-2 pt-4 border-t">
+                    <div className="flex items-center gap-2">
+                        <Checkbox id="serial" checked={namingOptions.useSerial} onCheckedChange={(checked) => setNamingOptions(prev => ({ ...prev, useSerial: !!checked }))} disabled={!namingOptions.useDate} />
+                        <Label htmlFor="serial" className={`flex items-center ${!namingOptions.useDate ? 'text-muted-foreground' : ''}`}>
+                            Add serial number
+                            <InfoTooltip>Serializes notes with matching dates to prevent filename conflicts. Requires 'Add date' to be enabled.</InfoTooltip>
+                        </Label>
+                    </div>
+                    {namingOptions.useSerial && namingOptions.useDate && (
+                        <div className="space-y-2 pl-6 pt-4 border-t">
+                            <Label className="font-semibold">Serial number padding</Label>
+                            <RadioGroup value={namingOptions.serialPadding} onValueChange={(value) => setNamingOptions(prev => ({ ...prev, serialPadding: value as '1' | '01' | '001' | '0001' }))} className="flex flex-wrap gap-x-4 gap-y-2">
+                                <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="1" id="s1" />
+                                    <Label htmlFor="s1">1, 2, 3</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="01" id="s01" />
+                                    <Label htmlFor="s01">01, 02, 03</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="001" id="s001" />
+                                    <Label htmlFor="s001">001, 002, 003</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="0001" id="s0001" />
+                                    <Label htmlFor="s0001">0001, 0002, 0003</Label>
+                                </div>
+                            </RadioGroup>
+                        </div>
+                    )}
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="bg-secondary p-3 rounded-md text-sm text-muted-foreground flex items-center gap-2">
+                  <Eye className="h-4 w-4 text-primary shrink-0"/>
+                  <span className="truncate">{filenamePreview}</span>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-2">
+                <Label htmlFor="preset-name-save">Save Current Naming Settings as Preset</Label>
+                <div className="flex gap-2">
+                    <Input
+                    id="preset-name-save"
+                    placeholder="My Awesome Naming Preset"
+                    value={presetNameToSave}
+                    onChange={(e) => setPresetNameToSave(e.target.value)}
+                    />
+                    <Button onClick={onSavePreset}><Save className="mr-2 h-4 w-4" /> Save</Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Step 3: Markdown Formatting */}
+          <Card>
+            <CardHeader className="bg-accent/10">
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                <FileText className="h-5 w-5 text-purple-400" />
+                <span>Step 3: Markdown Formatting</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 space-y-4">
+              {renderMarkdownPresetSelect('Load Markdown Preset')}
+              <Separator />
+              <div className="space-y-2">
+                <Label className="font-semibold flex items-center">Tag handling <span className="ml-2 text-sm font-normal text-muted-foreground">relevant for Obsidian Graphs</span><InfoTooltip>Choose how to represent Google Keep tags in Obsidian.</InfoTooltip></Label>
+                <RadioGroup value={formattingOptions.tagHandling} onValueChange={(value) => setFormattingOptions(prev => ({...prev, tagHandling: value as 'links' | 'hash' | 'atlinks'}))} className="flex flex-wrap gap-4 pt-2">
+                    <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="links" id="links" />
+                        <Label htmlFor="links">Links (notes)</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="hash" id="hash" />
+                        <Label htmlFor="hash">#Hashtags</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="atlinks" id="atlinks" />
+                        <Label htmlFor="atlinks">@Mentions</Label>
+                    </div>
+                </RadioGroup>
+              </div>
+              <Separator />
+              <Dialog>
+                  <DialogTrigger asChild>
+                      <Button id="preview-dialog-trigger" className="w-full" onClick={handlePreviewClick} disabled={isLoading || htmlFiles.length === 0}>
+                          {isLoading && convertedFiles.length === 0 ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Eye className="mr-2 h-5 w-5" />}
+                          {isLoading && convertedFiles.length === 0 ? 'Processing...' : 'Preview All Options'}
+                      </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+                      <DialogHeader>
+                          <DialogTitle>Conversion Preview</DialogTitle>
+                          <div className="pt-2">
+                            {renderMarkdownPresetSelect(
+                              'Markdown Preset',
+                              undefined,
+                              'Select a preset to preview...',
+                            )}
+                          </div>
+                      </DialogHeader>
+                      <div className="flex-grow grid grid-cols-3 gap-4 overflow-hidden pt-4">
+                          <ScrollArea className="col-span-1 border rounded-lg">
+                              <div className="p-4">
+                              {convertedFiles.map((file, index) => (
+                                  <div key={index}>
+                                      <button onClick={() => setPreviewFile(file)} className={`w-full text-left p-2 rounded-md ${previewFile?.originalPath === file.originalPath ? 'bg-accent' : ''}`}>
+                                          <p className="font-semibold truncate">{file.newPath}</p>
+                                          <p className="text-xs text-muted-foreground truncate">{file.originalPath}</p>
+                                      </button>
+                                  </div>
+                              ))}
+                              </div>
+                          </ScrollArea>
+                          <ScrollArea className="col-span-2 border rounded-lg">
+                              {previewFile ? (
+                                  <div className="p-4">
+                                      <div className="prose dark:prose-invert max-w-none prose-p:my-2 prose-h1:mb-4 prose-h1:mt-2 prose-h2:mb-3 prose-h2:mt-1.5 prose-h3:mb-2 prose-h3:mt-1 font-body text-foreground">
+                                        {renderMarkdownContent(previewFile.content)}
+                                      </div>
+                                  </div>
+                              ) : (
+                                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                                      <p>Select a file to preview</p>
+                                  </div>
+                              )}
+                          </ScrollArea>
+                      </div>
+                      <div className="flex justify-end gap-2 pt-4">
+                          {previewFile && <Button variant="outline" onClick={() => downloadFile({newPath: previewFile.newPath, content: previewFile.content})}>Download Selected</Button>}
+                          <Button onClick={() => downloadAllAsZip(convertedFiles)}>Download All Previewed as .zip</Button>
+                      </div>
+                  </DialogContent>
+              </Dialog>
+            </CardContent>
+          </Card>
+
+          {/* Step 4: Finish */}
+          <Card>
+            <CardHeader className="bg-purple-500/10">
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                <FileArchive className="h-5 w-5 text-purple-400" />
+                <span>Step 4: Finish</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+                <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                  <Button size="lg" className="w-full text-accent-foreground" onClick={() => startConversion(htmlFiles, false)} disabled={isLoading || htmlFiles.length === 0} style={{ backgroundColor: 'hsl(var(--accent))' }}>
+                      {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Download className="mr-2 h-5 w-5" />}
+                      {isLoading ? 'Processing...' : 'Convert & Download .zip'}
+                  </Button>
+              </div>
+                {isLoading && (
+                <div className="mt-6 w-full space-y-4 rounded-lg bg-secondary/50 p-4">
+                    <div className="space-y-2 text-center">
+                      <p className="text-sm font-medium text-muted-foreground truncate">{statusText}</p>
+                      <Progress value={progress} className="w-full" />
+                      <p className="text-sm text-muted-foreground">{htmlFiles.length - queuedFiles.length}/{htmlFiles.length} files converted ({Math.round(progress)}%)</p>
+                    </div>
+                    {queuedFiles.length > 0 && (
+                        <div>
+                            <p className="text-xs font-semibold text-muted-foreground mb-2">Up next...</p>
+                            <ScrollArea className="h-24 w-full rounded-md border bg-background/50">
+                                <div className="p-2 text-xs text-muted-foreground">
+                                    {queuedFiles.slice(0, 10).map((file, i) => (
+                                        <p key={i} className="truncate flex items-center">
+                                            <ChevronRight className="h-3 w-3 mr-1 flex-shrink-0" />
+                                            {file}
+                                        </p>
                                     ))}
-                                </SelectContent>
-                                </Select>
-                            </div>
-                        </DialogHeader>
-                        <div className="flex-grow grid grid-cols-3 gap-4 overflow-hidden pt-4">
-                            <ScrollArea className="col-span-1 border rounded-lg">
-                                <div className="p-4">
-                                {convertedFiles.map((file, index) => (
-                                    <div key={index}>
-                                        <button onClick={() => setPreviewFile(file)} className={`w-full text-left p-2 rounded-md ${previewFile?.originalPath === file.originalPath ? 'bg-accent' : ''}`}>
-                                            <p className="font-semibold truncate">{file.newPath}</p>
-                                            <p className="text-xs text-muted-foreground truncate">{file.originalPath}</p>
-                                        </button>
-                                    </div>
-                                ))}
+                                    {queuedFiles.length > 10 && <p className="mt-1">...and {queuedFiles.length - 10} more</p>}
                                 </div>
                             </ScrollArea>
-                            <ScrollArea className="col-span-2 border rounded-lg">
-                                {previewFile ? (
-                                    <div className="p-4">
-                                        <div className="prose dark:prose-invert max-w-none prose-p:my-2 prose-h1:mb-4 prose-h1:mt-2 prose-h2:mb-3 prose-h2:mt-1.5 prose-h3:mb-2 prose-h3:mt-1 font-body text-foreground">
-                                          {renderMarkdownContent(previewFile.content)}
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center justify-center h-full text-muted-foreground">
-                                        <p>Select a file to preview</p>
-                                    </div>
-                                )}
-                            </ScrollArea>
                         </div>
-                        <div className="flex justify-end gap-2 pt-4">
-                            {previewFile && <Button variant="outline" onClick={() => downloadFile({newPath: previewFile.newPath, content: previewFile.content})}>Download Selected</Button>}
-                            <Button onClick={() => downloadAllAsZip(convertedFiles)}>Download All Previewed as .zip</Button>
-                        </div>
-                    </DialogContent>
-                </Dialog>
-            </div>
-        </CardContent>
-      </Card>
-
-      {/* Finish Section */}
-      <Card>
-        <CardHeader className="bg-purple-500/10">
-          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-            <FileArchive className="h-5 w-5 text-purple-400" />
-            <span>Finish</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6">
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <Button size="lg" className="w-full text-accent-foreground" onClick={() => startConversion(htmlFiles, false)} disabled={isLoading || htmlFiles.length === 0} style={{ backgroundColor: 'hsl(var(--accent))' }}>
-                  {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Download className="mr-2 h-5 w-5" />}
-                  {isLoading ? 'Processing...' : 'Convert & Download .zip'}
-              </Button>
-          </div>
-            {isLoading && (
-            <div className="mt-6 w-full space-y-4 rounded-lg bg-secondary/50 p-4">
-                <div className="space-y-2 text-center">
-                  <p className="text-sm font-medium text-muted-foreground truncate">{statusText}</p>
-                  <Progress value={progress} className="w-full" />
-                  <p className="text-sm text-muted-foreground">{htmlFiles.length - queuedFiles.length}/{htmlFiles.length} files converted ({Math.round(progress)}%)</p>
+                    )}
                 </div>
-                {queuedFiles.length > 0 && (
-                    <div>
-                        <p className="text-xs font-semibold text-muted-foreground mb-2">Up next...</p>
-                        <ScrollArea className="h-24 w-full rounded-md border bg-background/50">
-                            <div className="p-2 text-xs text-muted-foreground">
-                                {queuedFiles.slice(0, 10).map((file, i) => (
-                                    <p key={i} className="truncate flex items-center">
-                                        <ChevronRight className="h-3 w-3 mr-1 flex-shrink-0" />
-                                        {file}
-                                    </p>
-                                ))}
-                                {queuedFiles.length > 10 && <p className="mt-1">...and {queuedFiles.length - 10} more</p>}
-                            </div>
-                        </ScrollArea>
-                    </div>
-                )}
-            </div>
-          )}
-          {allFiles.length > 0 && !isLoading && (
-              <div className="mt-4 flex items-start gap-2 rounded-lg bg-background/50 p-3 text-sm text-muted-foreground">
-                  <Info className="h-5 w-5 shrink-0 text-accent" />
-                  <div className="space-y-1">
-                      <p>This will download a single .zip file containing {htmlFiles.length} converted notes and {assetFiles.length} assets.</p>
-                      <p>For best results in Obsidian, unzip the file and place your assets in the same folder as your notes.</p>
+              )}
+              {allFiles.length > 0 && !isLoading && (
+                  <div className="mt-4 flex items-start gap-2 rounded-lg bg-background/50 p-3 text-sm text-muted-foreground">
+                      <Info className="h-5 w-5 shrink-0 text-accent" />
+                      <div className="space-y-1">
+                          <p>This will download a single .zip file containing {htmlFiles.length} converted notes and {assetFiles.length} assets.</p>
+                          <p>For best results in Obsidian, unzip the file and place your assets in the same folder as your notes.</p>
+                      </div>
                   </div>
-              </div>
-          )}
-        </CardContent>
-      </Card>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {isLivePreviewOpen && (
+          <aside className="hidden min-[769px]:block min-[769px]:col-span-1">
+            {livePreviewPanel}
+          </aside>
+        )}
+      </div>
     </div>
   );
 }
