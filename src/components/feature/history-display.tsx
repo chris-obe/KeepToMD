@@ -122,6 +122,17 @@ export function HistoryDisplay({
                   <p className="text-xs text-muted-foreground">
                     {run.fileCount} file{run.fileCount === 1 ? '' : 's'} converted
                   </p>
+                  <p className="mt-2 text-[11px] font-semibold text-muted-foreground">
+                    Run hash
+                  </p>
+                  <p className="mt-1 break-all rounded-md bg-muted/40 px-2 py-1 font-mono text-[10px] text-foreground/80">
+                    {run.hash}
+                  </p>
+                  {(run.namingOptions || run.formattingOptions) && (
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      Settings snapshot saved for consistency.
+                    </p>
+                  )}
                 </div>
               ))}
             </div>

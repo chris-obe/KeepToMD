@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useRef, type ChangeEvent, useEffect, useMemo } from 'react';
+import { useState, useRef, type ChangeEvent, useEffect, useMemo, useCallback } from 'react';
 import {
   Upload,
   Folder,
@@ -59,7 +59,14 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import type { ConvertToMarkdownOutput } from '@/ai/schemas';
+import type {
+  ConvertToMarkdownOutput,
+  NamingOptions,
+  FormattingOptions,
+} from '@/ai/schemas';
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { cn } from "@/lib/utils";
 import { format } from 'date-fns';
 import JSZip from 'jszip';
 import { Input } from '../ui/input';
@@ -73,8 +80,7 @@ import {
   type ParsedKeepNote,
 } from '@/lib/keep-convert';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
-
-
+import { useConversionFiles } from "@/components/feature/conversion-context";
 
 
 
@@ -84,14 +90,16 @@ export type RunHistoryItem = {
   hash: string;
   fileCount: number;
   fileIdentifiers: string[];
+  noteHashes?: string[];
+  namingOptions?: NamingOptions;
+  formattingOptions?: FormattingOptions;
 };
 
 const getFileIdentifier = (file: File) => `${file.name}_${file.lastModified}`;
+const getFileKey = (file: File) => `${file.name}_${file.lastModified}_${file.size}`;
 
-const generateHash = (files: File[]) => {
-  const fileDetails = files.map(getFileIdentifier).sort().join('|');
-  return CryptoJS.SHA256(fileDetails).toString();
-};
+const buildRunHash = (hashes: string[]) =>
+  CryptoJS.SHA256([...hashes].sort().join("|")).toString();
 
 
 const InfoTooltip = ({ children }: { children: React.ReactNode }) => (
@@ -116,10 +124,16 @@ export function FileProcessingArea() {
   const [firstNoteTitle, setFirstNoteTitle] = useState<string>('My Note Title');
   const [filenamePreview, setFilenamePreview] = useState<string>('');
   const [presetNameToSave, setPresetNameToSave] = useState('');
+  const [markdownPresetNameToSave, setMarkdownPresetNameToSave] = useState('');
   const [isLivePreviewOpen, setLivePreviewOpen] = useState(false);
+  const [isPreviewVisible, setPreviewVisible] = useState(false);
+  const [isPreviewClosing, setPreviewClosing] = useState(false);
   const [previewNote, setPreviewNote] = useState<ParsedKeepNote | null>(null);
   const [isPreviewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewFileMarkdown, setPreviewFileMarkdown] = useState('');
+  const [isPreviewFileLoading, setPreviewFileLoading] = useState(false);
+  const [previewFileError, setPreviewFileError] = useState<string | null>(null);
 
   const {
     namingPresets,
@@ -131,6 +145,7 @@ export function FileProcessingArea() {
     setNamingOptions,
     markdownPresets,
     handleSelectMarkdownPreset,
+    handleSaveMarkdownPreset,
     selectedMarkdownPreset,
     formattingOptions,
     setFormattingOptions,
@@ -142,15 +157,107 @@ export function FileProcessingArea() {
   const [statusText, setStatusText] = useState('');
   const [queuedFiles, setQueuedFiles] = useState<string[]>([]);
   const [previewFile, setPreviewFile] = useState<typeof convertedFiles[0] | null>(null);
+  const [exportDestination, setExportDestination] = useState<'zip' | 'folder'>('zip');
+  const [alsoDownloadZip, setAlsoDownloadZip] = useState(true);
+  const [exportName, setExportName] = useState('Insert title');
+  const [exportDateFormat, setExportDateFormat] = useState<
+    "yyyy-MM-dd" | "dd-MM-yyyy" | "MM-dd-yyyy" | "yyyyMMdd"
+  >("yyyy-MM-dd");
 
   const [runHistory, setRunHistory] = useState<RunHistoryItem[]>([]);
   const [duplicateRun, setDuplicateRun] = useState<RunHistoryItem | null>(null);
   const [isDuplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [noteHashEntries, setNoteHashEntries] = useState<
+    { file: File; key: string; hash: string }[]
+  >([]);
+  const [selectionHash, setSelectionHash] = useState<string | null>(null);
+  const [duplicateSummary, setDuplicateSummary] = useState<{
+    total: number;
+    existing: number;
+    newCount: number;
+    exactRun: RunHistoryItem | null;
+  } | null>(null);
+  const [previewOffset, setPreviewOffset] = useState(96);
+  const [isPreviewStuck, setPreviewStuck] = useState(false);
+  const previewShellRef = useRef<HTMLDivElement | null>(null);
+  const previewRafRef = useRef<number | null>(null);
+  const previewCloseTimeoutRef = useRef<number | null>(null);
   
   const isFillerTextActive = !namingOptions.useTitle || !namingOptions.useBody;
 
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { files: sharedFiles, setFiles: setSharedFiles } = useConversionFiles();
+  const lastAppliedSignature = useRef<string | null>(null);
+  const lastDuplicateSignature = useRef<string | null>(null);
+  const [supportsDirectoryPicker, setSupportsDirectoryPicker] = useState(false);
+
+  const buildFileSignature = (files: File[]) =>
+    files.map(getFileIdentifier).sort().join("|");
+
+  const closeLivePreviewImmediate = () => {
+    if (previewCloseTimeoutRef.current !== null) {
+      window.clearTimeout(previewCloseTimeoutRef.current);
+      previewCloseTimeoutRef.current = null;
+    }
+    setPreviewClosing(false);
+    setPreviewVisible(false);
+    setLivePreviewOpen(false);
+  };
+
+  const openLivePreview = () => {
+    if (previewCloseTimeoutRef.current !== null) {
+      window.clearTimeout(previewCloseTimeoutRef.current);
+      previewCloseTimeoutRef.current = null;
+    }
+    setPreviewClosing(false);
+    setPreviewVisible(true);
+    setLivePreviewOpen(true);
+  };
+
+  const closeLivePreview = () => {
+    if (isPreviewClosing || !isPreviewVisible) {
+      setLivePreviewOpen(false);
+      return;
+    }
+    setPreviewClosing(true);
+    setLivePreviewOpen(false);
+    previewCloseTimeoutRef.current = window.setTimeout(() => {
+      setPreviewClosing(false);
+      setPreviewVisible(false);
+      previewCloseTimeoutRef.current = null;
+    }, 300);
+  };
+
+  const applySelectedFiles = (selectedFiles: File[]) => {
+    setAllFiles(selectedFiles);
+    const htmls = selectedFiles.filter(file => file.type === "text/html");
+    setHtmlFiles(htmls);
+    setAssetFiles(selectedFiles.filter(file => file.type !== "text/html"));
+    setConvertedFiles([]);
+    setProgress(0);
+    if (htmls.length > 0) {
+      openLivePreview();
+    } else {
+      closeLivePreviewImmediate();
+    }
+    lastDuplicateSignature.current = null;
+  };
+
+  const applyHtmlSelection = (selectedHtml: File[]) => {
+    setHtmlFiles(selectedHtml);
+    setConvertedFiles([]);
+    setProgress(0);
+    if (selectedHtml.length > 0) {
+      openLivePreview();
+    } else {
+      closeLivePreviewImmediate();
+    }
+    setPreviewFile(null);
+    setDuplicateRun(null);
+    setDuplicateSummary(null);
+    lastDuplicateSignature.current = null;
+  };
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -164,6 +271,140 @@ export function FileProcessingArea() {
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (previewCloseTimeoutRef.current !== null) {
+        window.clearTimeout(previewCloseTimeoutRef.current);
+        previewCloseTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (sharedFiles.length === 0) return;
+    const signature = buildFileSignature(sharedFiles);
+    if (lastAppliedSignature.current === signature) return;
+    lastAppliedSignature.current = signature;
+    applySelectedFiles(sharedFiles);
+  }, [sharedFiles]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setSupportsDirectoryPicker("showDirectoryPicker" in window);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const header = document.querySelector("header");
+    if (!header) return;
+
+    const updateOffset = () => {
+      const height = header.getBoundingClientRect().height;
+      setPreviewOffset(Math.max(72, Math.ceil(height + 16)));
+    };
+
+    updateOffset();
+    const observer = new ResizeObserver(updateOffset);
+    observer.observe(header);
+    window.addEventListener("resize", updateOffset);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateOffset);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const shell = previewShellRef.current;
+    if (!shell) return;
+
+    const updateStuckState = () => {
+      if (previewRafRef.current !== null) return;
+      previewRafRef.current = window.requestAnimationFrame(() => {
+        previewRafRef.current = null;
+        const top = shell.getBoundingClientRect().top;
+        setPreviewStuck(top <= previewOffset + 1);
+      });
+    };
+
+    updateStuckState();
+    window.addEventListener("scroll", updateStuckState, { passive: true });
+    window.addEventListener("resize", updateStuckState);
+    return () => {
+      window.removeEventListener("scroll", updateStuckState);
+      window.removeEventListener("resize", updateStuckState);
+      if (previewRafRef.current !== null) {
+        window.cancelAnimationFrame(previewRafRef.current);
+        previewRafRef.current = null;
+      }
+    };
+  }, [previewOffset]);
+
+  useEffect(() => {
+    let isActive = true;
+    if (htmlFiles.length === 0) {
+      setNoteHashEntries([]);
+      setSelectionHash(null);
+      return () => {
+        isActive = false;
+      };
+    }
+
+    const buildNoteHashes = async () => {
+      const entries = await Promise.all(
+        htmlFiles.map(async (file) => {
+          const content = await file.text();
+          return {
+            file,
+            key: getFileKey(file),
+            hash: CryptoJS.SHA256(content).toString(),
+          };
+        }),
+      );
+      if (!isActive) return;
+      setNoteHashEntries(entries);
+      const hashes = entries.map((entry) => entry.hash);
+      setSelectionHash(hashes.length > 0 ? buildRunHash(hashes) : null);
+    };
+
+    buildNoteHashes();
+    return () => {
+      isActive = false;
+    };
+  }, [htmlFiles]);
+
+  useEffect(() => {
+    if (!selectionHash || noteHashEntries.length === 0) {
+      setDuplicateSummary(null);
+      setDuplicateRun(null);
+      return;
+    }
+
+    const processedHashes = new Set(
+      runHistory.flatMap((run) => run.noteHashes ?? []),
+    );
+    const total = noteHashEntries.length;
+    const existing = noteHashEntries.filter((entry) =>
+      processedHashes.has(entry.hash),
+    ).length;
+    const newCount = total - existing;
+    const exactRun =
+      runHistory.find((run) => run.hash === selectionHash) ?? null;
+
+    if (existing === 0) {
+      setDuplicateSummary(null);
+      setDuplicateRun(null);
+      return;
+    }
+
+    setDuplicateSummary({ total, existing, newCount, exactRun });
+    setDuplicateRun(exactRun);
+
+    if (lastDuplicateSignature.current !== selectionHash) {
+      setDuplicateDialogOpen(true);
+      lastDuplicateSignature.current = selectionHash;
+    }
+  }, [noteHashEntries, runHistory, selectionHash]);
   // --- History Management ---
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -190,31 +431,16 @@ export function FileProcessingArea() {
   };
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-        const ignoredFiles = ['.DS_Store', 'Thumbs.db'];
-        const selectedFiles = Array.from(event.target.files).filter(
-            file => !ignoredFiles.includes(file.name)
-        );
-        
-        setAllFiles(selectedFiles);
-        const htmls = selectedFiles.filter(file => file.type === 'text/html');
-        setHtmlFiles(htmls);
-        setAssetFiles(selectedFiles.filter(file => file.type !== 'text/html'));
-        setLivePreviewOpen(htmls.length > 0);
-        setConvertedFiles([]); // Reset on new file selection
-        setProgress(0);
-        
-        if (htmls.length > 0) {
-          const currentHash = generateHash(htmls);
-          const foundDuplicate = runHistory.find(run => run.hash === currentHash);
-          if (foundDuplicate) {
-              setDuplicateRun(foundDuplicate);
-              setDuplicateDialogOpen(true);
-          } else {
-              setDuplicateRun(null);
-          }
-        }
-    }
+    if (!event.target.files) return;
+    const ignoredFiles = [".DS_Store", "Thumbs.db"];
+    const selectedFiles = Array.from(event.target.files).filter(
+      file => !ignoredFiles.includes(file.name)
+    );
+
+    if (selectedFiles.length === 0) return;
+    applySelectedFiles(selectedFiles);
+    setSharedFiles(selectedFiles);
+    lastAppliedSignature.current = buildFileSignature(selectedFiles);
   };
 
   useEffect(() => {
@@ -275,6 +501,253 @@ export function FileProcessingArea() {
     if (!previewNote) return '';
     return formatMarkdown(previewNote, formattingOptions);
   }, [previewNote, formattingOptions]);
+
+  const livePreviewFilename = useMemo(() => {
+    if (!previewNote) return filenamePreview;
+    return buildFilename({ note: previewNote, options: namingOptions, serial: 1 });
+  }, [filenamePreview, namingOptions, previewNote]);
+
+  const assetUrlMap = useMemo(() => {
+    const map = new Map<string, string>();
+    const normalizeKey = (value: string) => value.toLowerCase();
+    const stripExtension = (value: string) => value.replace(/\.[^.]+$/, "");
+    const addKey = (key: string, url: string) => {
+      map.set(key, url);
+      map.set(normalizeKey(key), url);
+      map.set(stripExtension(key), url);
+      map.set(stripExtension(normalizeKey(key)), url);
+    };
+    assetFiles.forEach((file) => {
+      const url = URL.createObjectURL(file);
+      addKey(file.name, url);
+      const relativePath = (file as File & { webkitRelativePath?: string })
+        .webkitRelativePath;
+      if (relativePath) {
+        addKey(relativePath, url);
+        const baseName = relativePath.split("/").pop();
+        if (baseName) {
+          addKey(baseName, url);
+        }
+      }
+    });
+    return map;
+  }, [assetFiles]);
+
+  useEffect(() => {
+    return () => {
+      assetUrlMap.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [assetUrlMap]);
+
+  const normalizeMarkdownImages = useCallback((markdown: string) => {
+    return markdown.replace(/!\[\[([^\]]+)\]\]/g, (_match, rawName) => {
+      const name = String(rawName ?? '').trim();
+      if (!name) return _match;
+      return `![${name}](keep-asset://${encodeURIComponent(name)})`;
+    });
+  }, []);
+
+  const resolveAssetSrc = useCallback(
+    (src?: string) => {
+      if (!src) return null;
+      let decodedSrc = src;
+      try {
+        decodedSrc = decodeURIComponent(src);
+      } catch {
+        decodedSrc = src;
+      }
+      const cleanSrc = decodedSrc.split("?")[0]?.split("#")[0] ?? decodedSrc;
+      const lookup = (value: string) =>
+        assetUrlMap.get(value) ?? assetUrlMap.get(value.toLowerCase());
+      const findBySuffix = (value: string) => {
+        const normalized = value.toLowerCase();
+        for (const [key, url] of assetUrlMap) {
+          if (key.toLowerCase().endsWith(normalized)) {
+            return url;
+          }
+        }
+        return null;
+      };
+      if (cleanSrc.startsWith("keep-asset://")) {
+        const name = cleanSrc.replace("keep-asset://", "");
+        return lookup(name) ?? findBySuffix(name);
+      }
+      const filename = cleanSrc.split("/").pop();
+      if (filename) {
+        return lookup(filename) ?? findBySuffix(filename);
+      }
+      return lookup(cleanSrc) ?? findBySuffix(cleanSrc) ?? cleanSrc;
+    },
+    [assetUrlMap],
+  );
+
+  const previewMarkdownNormalized = useMemo(
+    () => normalizeMarkdownImages(previewMarkdown),
+    [normalizeMarkdownImages, previewMarkdown],
+  );
+
+  useEffect(() => {
+    let isActive = true;
+    if (!previewFile) {
+      setPreviewFileMarkdown('');
+      setPreviewFileError(null);
+      setPreviewFileLoading(false);
+      return () => {
+        isActive = false;
+      };
+    }
+
+    const sourceFile =
+      htmlFiles.find((file) => file.name === previewFile.originalPath) ?? null;
+    if (!sourceFile) {
+      setPreviewFileMarkdown(normalizeMarkdownImages(previewFile.content));
+      setPreviewFileError(null);
+      setPreviewFileLoading(false);
+      return () => {
+        isActive = false;
+      };
+    }
+
+    setPreviewFileLoading(true);
+    setPreviewFileError(null);
+    sourceFile
+      .text()
+      .then((content) => {
+        if (!isActive) return;
+        const data = parseKeepHtml(content);
+        const markdownContent = formatMarkdown(data, formattingOptions);
+        setPreviewFileMarkdown(normalizeMarkdownImages(markdownContent));
+      })
+      .catch((error) => {
+        if (!isActive) return;
+        setPreviewFileMarkdown(normalizeMarkdownImages(previewFile.content));
+        setPreviewFileError(
+          error instanceof Error ? error.message : 'Unable to refresh preview.',
+        );
+      })
+      .finally(() => {
+        if (!isActive) return;
+        setPreviewFileLoading(false);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [
+    formattingOptions,
+    htmlFiles,
+    normalizeMarkdownImages,
+    previewFile,
+  ]);
+
+  const markdownComponents = useMemo(
+    () => ({
+      img: ({
+        src,
+        alt,
+      }: {
+        src?: string;
+        alt?: string;
+      }) => {
+        const resolvedSrc = resolveAssetSrc(src);
+        if (!resolvedSrc) {
+          return (
+            <span className="text-xs text-muted-foreground italic">
+              Image not found: {alt ?? src ?? "unknown"}
+            </span>
+          );
+        }
+        return (
+          <img
+            src={resolvedSrc}
+            alt={alt ?? ""}
+            className="max-w-full rounded-lg my-4"
+          />
+        );
+      },
+      input: ({
+        type,
+        checked,
+      }: {
+        type?: string;
+        checked?: boolean;
+      }) => {
+        if (type !== "checkbox") return null;
+        return (
+          <input
+            type="checkbox"
+            checked={checked}
+            readOnly
+            className="mr-2 align-middle accent-primary"
+          />
+        );
+      },
+      ul: ({
+        node,
+        className,
+        ...props
+      }: {
+        node?: { properties?: { className?: string[] | string } };
+        className?: string;
+        children?: React.ReactNode;
+      }) => {
+        const classes = node?.properties?.className;
+        const classList = Array.isArray(classes)
+          ? classes
+          : ([classes].filter(Boolean) as string[]);
+        const isTaskList = classList?.includes("contains-task-list");
+        return (
+          <ul
+            {...props}
+            className={cn(className, isTaskList ? "list-none pl-0" : undefined)}
+          />
+        );
+      },
+      ol: ({
+        node,
+        className,
+        ...props
+      }: {
+        node?: { properties?: { className?: string[] | string } };
+        className?: string;
+        children?: React.ReactNode;
+      }) => {
+        const classes = node?.properties?.className;
+        const classList = Array.isArray(classes)
+          ? classes
+          : ([classes].filter(Boolean) as string[]);
+        const isTaskList = classList?.includes("contains-task-list");
+        return (
+          <ol
+            {...props}
+            className={cn(className, isTaskList ? "list-none pl-0" : undefined)}
+          />
+        );
+      },
+      li: ({
+        node,
+        className,
+        ...props
+      }: {
+        node?: { properties?: { className?: string[] | string } };
+        className?: string;
+        children?: React.ReactNode;
+      }) => {
+        const classes = node?.properties?.className;
+        const classList = Array.isArray(classes)
+          ? classes
+          : ([classes].filter(Boolean) as string[]);
+        const isTaskItem = classList?.includes("task-list-item");
+        return (
+          <li
+            {...props}
+            className={cn(className, isTaskItem ? "list-none" : undefined)}
+          />
+        );
+      },
+    }),
+    [resolveAssetSrc],
+  );
   
   const startConversion = (files: File[], isPreview: boolean) => {
     if(isPreview) {
@@ -287,12 +760,14 @@ export function FileProcessingArea() {
   const handleDuplicateDialogAction = (action: 'new' | 'all') => {
     setDuplicateDialogOpen(false);
     if (action === 'all') {
-      startConversion(htmlFiles, false);
+      return;
     } else if (action === 'new') {
-      const processedFileIdentifiers = new Set(
-        runHistory.flatMap(run => run.fileIdentifiers)
+      const processedHashes = new Set(
+        runHistory.flatMap(run => run.noteHashes ?? [])
       );
-      const newFiles = htmlFiles.filter(file => !processedFileIdentifiers.has(getFileIdentifier(file)));
+      const newFiles = noteHashEntries
+        .filter(entry => !processedHashes.has(entry.hash))
+        .map(entry => entry.file);
       
       if(newFiles.length === 0) {
         toast({
@@ -302,10 +777,10 @@ export function FileProcessingArea() {
         return;
       }
       toast({
-        title: "Converting New Files",
-        description: `Skipping ${htmlFiles.length - newFiles.length} previously converted notes.`,
+        title: "Selection Updated",
+        description: `Keeping ${newFiles.length} new note${newFiles.length === 1 ? "" : "s"}.`,
       });
-      startConversion(newFiles, false);
+      applyHtmlSelection(newFiles);
     }
   };
 
@@ -325,6 +800,7 @@ export function FileProcessingArea() {
     if (!preview) {
       setConvertedFiles([]);
     }
+    const noteHashesForRun: string[] = [];
   
     try {
       // If date sorting is enabled, we need to read all dates first.
@@ -357,9 +833,12 @@ export function FileProcessingArea() {
             setQueuedFiles(remainingQueue);
             setStatusText(`Converting: ${file.name}`);
         }
-  
+
         // Read file content one by one inside the loop
         const fileContent = await file.text();
+        if (!preview) {
+          noteHashesForRun.push(CryptoJS.SHA256(fileContent).toString());
+        }
         const data = parseKeepHtml(fileContent);
         
         const markdownContent = formatMarkdown(data, formattingOptions);
@@ -390,16 +869,37 @@ export function FileProcessingArea() {
           });
         } else {
           setConvertedFiles(result.convertedFiles);
-          setStatusText('Conversion complete! Preparing download...');
-          await downloadAllAsZip(result.convertedFiles);
+          setStatusText('Conversion complete! Preparing export...');
+          const exportLabel = buildExportLabel();
+          if (exportDestination === 'folder') {
+            const folderExported = await exportAsFolder(
+              result.convertedFiles,
+              exportLabel,
+            );
+            if (!folderExported && !alsoDownloadZip) {
+              return;
+            }
+            if (alsoDownloadZip) {
+              await downloadAllAsZip(result.convertedFiles, exportLabel);
+            }
+          } else {
+            await downloadAllAsZip(result.convertedFiles, exportLabel);
+          }
           
-          const currentHash = generateHash(filesToProcess);
+          const currentHash = buildRunHash(noteHashesForRun);
           const fileIdentifiers = filesToProcess.map(getFileIdentifier);
-          addToHistory({ hash: currentHash, fileCount: filesToProcess.length, fileIdentifiers });
+          addToHistory({
+            hash: currentHash,
+            fileCount: filesToProcess.length,
+            fileIdentifiers,
+            noteHashes: noteHashesForRun,
+            namingOptions,
+            formattingOptions,
+          });
 
           toast({
               title: "Conversion Successful",
-              description: `${totalFiles} notes and ${assetFiles.length} assets have been prepared for download.`,
+              description: `${totalFiles} notes and ${assetFiles.length} assets prepared. Run hash and settings saved in Settings > Sync & History.`,
           });
         }
         
@@ -440,7 +940,10 @@ export function FileProcessingArea() {
     URL.revokeObjectURL(url);
   };
   
-  const downloadAllAsZip = async (filesToDownload = convertedFiles) => {
+  const downloadAllAsZip = async (
+    filesToDownload = convertedFiles,
+    exportLabel = buildExportLabel(),
+  ) => {
     setStatusText('Creating .zip file...');
     const zip = new JSZip();
 
@@ -462,13 +965,89 @@ export function FileProcessingArea() {
     const url = URL.createObjectURL(zipBlob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'KeepToMD-Export.zip';
+    a.download = `${exportLabel}.zip`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     setStatusText('Download started!');
   }
+
+  const exportAsFolder = async (
+    filesToDownload = convertedFiles,
+    exportLabel = buildExportLabel(),
+  ) => {
+    if (!supportsDirectoryPicker) {
+      toast({
+        variant: "destructive",
+        title: "Folder export unavailable",
+        description: "Your browser doesn't support folder export. Download a .zip instead.",
+      });
+      return false;
+    }
+
+    setStatusText("Choose an export folder...");
+    let rootHandle: FileSystemDirectoryHandle;
+    try {
+      const picker = (window as Window & {
+        showDirectoryPicker?: (options?: { mode?: "readwrite" }) => Promise<FileSystemDirectoryHandle>;
+      }).showDirectoryPicker;
+      if (!picker) {
+        throw new Error("Directory picker unavailable.");
+      }
+      rootHandle = await picker({ mode: "readwrite" });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        toast({
+          title: "Export canceled",
+          description: "Folder selection was canceled.",
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Export failed",
+          description: "Unable to access the selected folder.",
+        });
+      }
+      return false;
+    }
+
+    let exportHandle: FileSystemDirectoryHandle;
+    try {
+      exportHandle = await rootHandle.getDirectoryHandle(exportLabel, { create: true });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Export failed",
+        description: "Unable to create the export folder.",
+      });
+      return false;
+    }
+
+    const totalFiles = Math.max(1, filesToDownload.length + assetFiles.length);
+    let completed = 0;
+    setStatusText("Writing files...");
+    setProgress(0);
+
+    const writeFile = async (name: string, content: BlobPart) => {
+      const fileHandle = await exportHandle.getFileHandle(name, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(content);
+      await writable.close();
+      completed += 1;
+      setProgress((completed / totalFiles) * 100);
+    };
+
+    for (const file of filesToDownload) {
+      await writeFile(file.newPath, file.content);
+    }
+    for (const file of assetFiles) {
+      await writeFile(file.name, file);
+    }
+
+    setStatusText(`Exported to folder: ${exportLabel}`);
+    return true;
+  };
 
 
   useEffect(() => {
@@ -491,29 +1070,18 @@ export function FileProcessingArea() {
     await handleRunConversion(htmlFiles, true);
   }
 
-  // A simple function to convert markdown-style image links to HTML img tags
-  const renderMarkdownContent = (content: string) => {
-    // This is a very basic renderer. For a full-featured preview,
-    // a library like 'react-markdown' would be ideal.
-    return content.split('\n').map((line, i) => {
-        if (line.startsWith('# ')) return <h1 key={i} className="text-3xl font-bold mt-4 mb-2">{line.substring(2)}</h1>;
-        if (line.startsWith('## ')) return <h2 key={i} className="text-2xl font-bold mt-3 mb-1.5">{line.substring(3)}</h2>;
-        if (line.startsWith('### ')) return <h3 key={i} className="text-xl font-bold mt-2 mb-1">{line.substring(4)}</h3>;
-        if (line.startsWith('**Tags:**')) return <p key={i} className="my-2">{line}</p>;
-        if (line.startsWith('**Created:**')) return <p key={i} className="text-sm text-muted-foreground mb-4">{line}</p>;
-        if (line.match(/!\[\[(.*?)\]\]/)) {
-          const imageName = line.match(/!\[\[(.*?)\]\]/)?.[1];
-          const imageFile = assetFiles.find(f => f.name === imageName);
-          if (imageFile) {
-            return <img key={i} src={URL.createObjectURL(imageFile)} alt={imageName} className="max-w-full rounded-lg my-4"/>
-          }
-          return <p key={i} className="my-2 text-muted-foreground italic">![[Image: {imageName}]] (preview unavailable)</p>;
-        }
-        if (line.trim() === '') return <br key={i} />;
-        return <p key={i}>{line}</p>;
-    });
-  }
-  
+  const buildExportBaseName = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return "KeepToMD-Export";
+    return trimmed.replace(/[\\/]/g, "-");
+  };
+
+  const buildExportLabel = () => {
+    const base = buildExportBaseName(exportName);
+    const timestamp = format(new Date(), exportDateFormat);
+    return `${timestamp} - ${base}`;
+  };
+
   const handleBodyUnitChange = (value: 'characters' | 'words' | 'lines') => {
     let newLength = namingOptions.bodyLength;
     if (value === 'characters') newLength = 30;
@@ -530,6 +1098,19 @@ export function FileProcessingArea() {
     handleSaveNamingPreset(presetNameToSave);
     toast({ title: 'Preset Saved', description: `Preset "${presetNameToSave}" has been saved.` });
     setPresetNameToSave('');
+  };
+
+  const onSaveMarkdownPreset = () => {
+    if (!markdownPresetNameToSave) {
+      toast({ variant: 'destructive', title: 'Preset name cannot be empty.' });
+      return;
+    }
+    handleSaveMarkdownPreset(markdownPresetNameToSave);
+    toast({
+      title: 'Preset Saved',
+      description: `Preset "${markdownPresetNameToSave}" has been saved.`,
+    });
+    setMarkdownPresetNameToSave('');
   };
 
   const renderMarkdownPresetSelect = (
@@ -554,8 +1135,102 @@ export function FileProcessingArea() {
     </div>
   );
 
+  const renderTagHandlingOptions = (compact = false, idPrefix = "format") => (
+    <div className="space-y-2">
+      <Label className="font-semibold flex items-center">
+        Tag handling
+        {!compact && (
+          <span className="ml-2 text-sm font-normal text-muted-foreground">
+            relevant for Obsidian Graphs
+          </span>
+        )}
+        <InfoTooltip>
+          Choose how to represent Google Keep tags in Obsidian.
+        </InfoTooltip>
+      </Label>
+      <RadioGroup
+        value={formattingOptions.tagHandling}
+        onValueChange={(value) =>
+          setFormattingOptions((prev) => ({
+            ...prev,
+            tagHandling: value as 'links' | 'hash' | 'atlinks',
+          }))
+        }
+        className={`flex flex-wrap gap-4 ${compact ? '' : 'pt-2'}`}
+      >
+        <div className="flex items-center space-x-2">
+          <RadioGroupItem value="links" id={`${idPrefix}-tag-links`} />
+          <Label htmlFor={`${idPrefix}-tag-links`}>Links (notes)</Label>
+        </div>
+        <div className="flex items-center space-x-2">
+          <RadioGroupItem value="hash" id={`${idPrefix}-tag-hash`} />
+          <Label htmlFor={`${idPrefix}-tag-hash`}>#Hashtags</Label>
+        </div>
+        <div className="flex items-center space-x-2">
+          <RadioGroupItem value="atlinks" id={`${idPrefix}-tag-atlinks`} />
+          <Label htmlFor={`${idPrefix}-tag-atlinks`}>@Mentions</Label>
+        </div>
+      </RadioGroup>
+    </div>
+  );
+
+  const renderChecklistOptions = (compact = false, idPrefix = "format") => (
+    <div className="space-y-2">
+      <Label className="font-semibold flex items-center">
+        Checklist formatting
+        <InfoTooltip>
+          Choose how Google Keep checklists are represented in the exported
+          Markdown.
+        </InfoTooltip>
+      </Label>
+      <RadioGroup
+        value={formattingOptions.checkboxStyle ?? "markdown"}
+        onValueChange={(value) =>
+          setFormattingOptions((prev) => ({
+            ...prev,
+            checkboxStyle: value as
+              | "markdown"
+              | "hyphen"
+              | "bullet"
+              | "numbered",
+          }))
+        }
+        className={`flex flex-wrap gap-4 ${compact ? '' : 'pt-2'}`}
+      >
+        <div className="flex items-center space-x-2">
+          <RadioGroupItem value="markdown" id={`${idPrefix}-check-markdown`} />
+          <Label htmlFor={`${idPrefix}-check-markdown`}>Markdown checkboxes</Label>
+        </div>
+        <div className="flex items-center space-x-2">
+          <RadioGroupItem value="hyphen" id={`${idPrefix}-check-hyphen`} />
+          <Label htmlFor={`${idPrefix}-check-hyphen`}>Hyphens</Label>
+        </div>
+        <div className="flex items-center space-x-2">
+          <RadioGroupItem value="bullet" id={`${idPrefix}-check-bullet`} />
+          <Label htmlFor={`${idPrefix}-check-bullet`}>Bullets</Label>
+        </div>
+        <div className="flex items-center space-x-2">
+          <RadioGroupItem value="numbered" id={`${idPrefix}-check-numbered`} />
+          <Label htmlFor={`${idPrefix}-check-numbered`}>Numbered list</Label>
+        </div>
+      </RadioGroup>
+    </div>
+  );
+
+  const previewState = isPreviewClosing
+    ? "closing"
+    : isLivePreviewOpen
+      ? "open"
+      : "collapsed";
+
   const livePreviewPanel = (
-    <div className="rounded-lg border bg-card/70 min-[769px]:sticky min-[769px]:top-20 min-[769px]:flex min-[769px]:h-[calc(100svh-6rem)] min-[769px]:flex-col">
+    <div
+      ref={previewShellRef}
+      data-stuck={isPreviewStuck ? "true" : "false"}
+      data-state={previewState}
+      style={{ ["--preview-top" as string]: `${previewOffset}px` }}
+      className="rounded-lg border bg-card/70 transition-[transform,box-shadow,border-color,opacity] duration-300 ease-out data-[state=closing]:opacity-0 data-[state=closing]:scale-[0.98] data-[state=closing]:pointer-events-none data-[state=collapsed]:opacity-0 data-[state=collapsed]:scale-[0.98] data-[state=collapsed]:pointer-events-none min-[769px]:sticky min-[769px]:top-[var(--preview-top)] min-[769px]:flex min-[769px]:h-[calc(100svh-var(--preview-top)-1.5rem)] min-[769px]:flex-col min-[769px]:will-change-transform min-[769px]:data-[stuck=true]:-translate-y-1 min-[769px]:data-[stuck=true]:border-primary/30 min-[769px]:data-[stuck=true]:shadow-[0_22px_60px_-36px_rgba(15,23,42,0.55)]"
+    >
       <div className="flex items-center justify-between gap-2 border-b bg-muted/30 px-4 py-3">
         <div>
           <p className="text-sm font-semibold text-foreground">Live Preview</p>
@@ -567,7 +1242,7 @@ export function FileProcessingArea() {
           type="button"
           variant="ghost"
           size="icon"
-          onClick={() => setLivePreviewOpen(false)}
+          onClick={closeLivePreview}
           aria-label="Hide live preview"
           title="Hide live preview"
         >
@@ -576,9 +1251,10 @@ export function FileProcessingArea() {
       </div>
       <div className="space-y-3 px-4 pt-3">
         {renderMarkdownPresetSelect('Markdown Preset')}
-        <p className="text-xs text-muted-foreground">
-          Output name: <span className="font-medium text-foreground">{filenamePreview}</span>
-        </p>
+        <div className="bg-secondary p-3 rounded-md text-sm text-muted-foreground flex items-center gap-2">
+          <Eye className="h-4 w-4 text-primary shrink-0" />
+          <span className="truncate">{livePreviewFilename}</span>
+        </div>
       </div>
       <div className="p-4 pt-3 min-[769px]:flex-1 min-[769px]:min-h-0">
         <ScrollArea className="h-[320px] min-[769px]:h-full">
@@ -590,7 +1266,12 @@ export function FileProcessingArea() {
           )}
           {!isPreviewLoading && !previewError && previewMarkdown && (
             <div className="prose dark:prose-invert max-w-none prose-p:my-2 prose-h1:mb-4 prose-h1:mt-2 prose-h2:mb-3 prose-h2:mt-1.5 prose-h3:mb-2 prose-h3:mt-1 font-body text-foreground">
-              {renderMarkdownContent(previewMarkdown)}
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={markdownComponents}
+              >
+                {previewMarkdownNormalized}
+              </ReactMarkdown>
             </div>
           )}
           {!isPreviewLoading && !previewError && !previewMarkdown && (
@@ -622,17 +1303,43 @@ export function FileProcessingArea() {
               Duplicate Run Detected
             </AlertDialogTitle>
             <AlertDialogDescription>
-              It looks like you've processed this exact set of files before on{' '}
-              {duplicateRun ? format(new Date(duplicateRun.date), 'PPpp') : 'a previous date'}.
-              How would you like to proceed?
+              {duplicateSummary ? (
+                duplicateSummary.exactRun && duplicateSummary.newCount === 0 ? (
+                  <>
+                    All {duplicateSummary.total} notes in this selection were
+                    converted on{" "}
+                    {format(new Date(duplicateSummary.exactRun.date), "PPpp")}.
+                    How would you like to proceed?
+                  </>
+                ) : (
+                  <>
+                    We found {duplicateSummary.existing} of{" "}
+                    {duplicateSummary.total} notes already converted.{" "}
+                    {duplicateSummary.newCount} new{" "}
+                    {duplicateSummary.newCount === 1 ? "note" : "notes"} remain.
+                  </>
+                )
+              ) : (
+                <>
+                  Some notes in this selection were converted before. How would
+                  you like to proceed?
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <p className="text-xs text-muted-foreground">
+            No conversion will run until you click Convert.
+          </p>
           <AlertDialogFooter className="flex-row justify-end gap-2">
             <Button variant="secondary" onClick={() => handleDuplicateDialogAction('all')}>
-                Convert All Again
+                Keep All Selected
             </Button>
-            <Button variant="outline" onClick={() => handleDuplicateDialogAction('new')}>
-              Convert New Files Only
+            <Button
+              variant="outline"
+              onClick={() => handleDuplicateDialogAction('new')}
+              disabled={duplicateSummary?.newCount === 0}
+            >
+              Keep Only New Files
             </Button>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
           </AlertDialogFooter>
@@ -640,26 +1347,13 @@ export function FileProcessingArea() {
       </AlertDialog>
 
       <div
-        className={`space-y-4 min-[769px]:items-start min-[769px]:gap-6 min-[769px]:space-y-0 min-[769px]:grid ${
-          isLivePreviewOpen ? 'min-[769px]:grid-cols-2' : 'min-[769px]:grid-cols-1'
+        className={`space-y-4 min-[769px]:gap-6 min-[769px]:space-y-0 min-[769px]:items-stretch min-[769px]:grid min-[769px]:transition-[grid-template-columns] min-[769px]:duration-300 min-[769px]:ease-out ${
+          isLivePreviewOpen
+            ? 'min-[769px]:grid-cols-[minmax(0,1fr)_420px]'
+            : 'min-[769px]:grid-cols-[minmax(0,1fr)_72px]'
         }`}
       >
         <div className="space-y-4 min-[769px]:col-span-1">
-          {!isLivePreviewOpen && (
-            <div className="hidden min-[769px]:flex justify-end">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => setLivePreviewOpen(true)}
-                aria-label="Show live preview"
-                title="Show live preview"
-              >
-                <Eye className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
-
           {/* Step 1: Import + Live Preview */}
           <Card>
             <CardHeader className="bg-primary/10">
@@ -684,13 +1378,24 @@ export function FileProcessingArea() {
                       <p>{assetFiles.length} other assets (images, audio, etc.) found.</p>
                   </div>
                 )}
+                {!isPreviewVisible && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full justify-start min-[769px]:hidden"
+                    onClick={openLivePreview}
+                  >
+                    <Eye className="mr-2 h-4 w-4" />
+                    Show live preview
+                  </Button>
+                )}
                 <div className="flex items-center gap-2 rounded-lg bg-background/50 p-3 text-sm text-muted-foreground">
                   <ShieldCheck className="h-5 w-5 shrink-0 text-accent" />
                   <p>Your files are processed locally in your browser and never leave your device.</p>
                 </div>
               </div>
 
-              {isLivePreviewOpen && (
+              {isPreviewVisible && (
                 <div className="min-[769px]:hidden">
                   {livePreviewPanel}
                 </div>
@@ -866,18 +1571,18 @@ export function FileProcessingArea() {
                             <RadioGroup value={namingOptions.dateFormat} onValueChange={(value) => setNamingOptions(p => ({...p, dateFormat: value}))} className="flex flex-wrap gap-x-4 gap-y-2">
                                 <div className="flex items-center space-x-2">
                                     <RadioGroupItem value="yyyy-MM-dd" id="df-1" />
-                                    <Label htmlFor="df-1">2024-07-29</Label>
+                                    <Label htmlFor="df-1">YYYY-MM-DD</Label>
                                 </div>
                                 <div className="flex items-center space-x-2">
                                     <RadioGroupItem value="dd-MM-yyyy" id="df-2" />
-                                    <Label htmlFor="df-2">29-07-2024</Label>                                    </div>
+                                    <Label htmlFor="df-2">DD-MM-YYYY</Label>                                    </div>
                                 <div className="flex items-center space-x-2">
                                     <RadioGroupItem value="MM-dd-yyyy" id="df-3" />
-                                    <Label htmlFor="df-3">07-29-2024</Label>
+                                    <Label htmlFor="df-3">MM-DD-YYYY</Label>
                                 </div>
                                 <div className="flex items-center space-x-2">
                                     <RadioGroupItem value="yyyyMMdd" id="df-4" />
-                                    <Label htmlFor="df-4">20240729</Label>
+                                    <Label htmlFor="df-4">YYYYMMDD</Label>
                                 </div>
                             </RadioGroup>
                         </div>
@@ -947,12 +1652,15 @@ export function FileProcessingArea() {
                 </div>
               </div>
 
-              <Separator />
-
-              <div className="bg-secondary p-3 rounded-md text-sm text-muted-foreground flex items-center gap-2">
-                  <Eye className="h-4 w-4 text-primary shrink-0"/>
-                  <span className="truncate">{filenamePreview}</span>
-              </div>
+              {!isPreviewVisible && (
+                <>
+                  <Separator />
+                  <div className="bg-secondary p-3 rounded-md text-sm text-muted-foreground flex items-center gap-2">
+                    <Eye className="h-4 w-4 text-primary shrink-0" />
+                    <span className="truncate">{filenamePreview}</span>
+                  </div>
+                </>
+              )}
 
               <Separator />
 
@@ -982,22 +1690,25 @@ export function FileProcessingArea() {
             <CardContent className="p-6 space-y-4">
               {renderMarkdownPresetSelect('Load Markdown Preset')}
               <Separator />
+              {renderTagHandlingOptions()}
+              <Separator />
+              {renderChecklistOptions()}
+              <Separator />
               <div className="space-y-2">
-                <Label className="font-semibold flex items-center">Tag handling <span className="ml-2 text-sm font-normal text-muted-foreground">relevant for Obsidian Graphs</span><InfoTooltip>Choose how to represent Google Keep tags in Obsidian.</InfoTooltip></Label>
-                <RadioGroup value={formattingOptions.tagHandling} onValueChange={(value) => setFormattingOptions(prev => ({...prev, tagHandling: value as 'links' | 'hash' | 'atlinks'}))} className="flex flex-wrap gap-4 pt-2">
-                    <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="links" id="links" />
-                        <Label htmlFor="links">Links (notes)</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="hash" id="hash" />
-                        <Label htmlFor="hash">#Hashtags</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="atlinks" id="atlinks" />
-                        <Label htmlFor="atlinks">@Mentions</Label>
-                    </div>
-                </RadioGroup>
+                <Label htmlFor="markdown-preset-name-save">
+                  Save current formatting as preset
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="markdown-preset-name-save"
+                    placeholder="My Markdown Preset"
+                    value={markdownPresetNameToSave}
+                    onChange={(e) => setMarkdownPresetNameToSave(e.target.value)}
+                  />
+                  <Button onClick={onSaveMarkdownPreset}>
+                    <Save className="mr-2 h-4 w-4" /> Save
+                  </Button>
+                </div>
               </div>
               <Separator />
               <Dialog>
@@ -1017,6 +1728,10 @@ export function FileProcessingArea() {
                               'Select a preset to preview...',
                             )}
                           </div>
+                          <div className="grid gap-4 pt-3 sm:grid-cols-2">
+                            {renderTagHandlingOptions(true, "preview")}
+                            {renderChecklistOptions(true, "preview")}
+                          </div>
                       </DialogHeader>
                       <div className="flex-grow grid grid-cols-3 gap-4 overflow-hidden pt-4">
                           <ScrollArea className="col-span-1 border rounded-lg">
@@ -1034,8 +1749,23 @@ export function FileProcessingArea() {
                           <ScrollArea className="col-span-2 border rounded-lg">
                               {previewFile ? (
                                   <div className="p-4">
+                                      {isPreviewFileLoading && (
+                                        <p className="text-xs text-muted-foreground mb-2">
+                                          Updating preview…
+                                        </p>
+                                      )}
+                                      {!isPreviewFileLoading && previewFileError && (
+                                        <p className="text-xs text-destructive mb-2">
+                                          {previewFileError}
+                                        </p>
+                                      )}
                                       <div className="prose dark:prose-invert max-w-none prose-p:my-2 prose-h1:mb-4 prose-h1:mt-2 prose-h2:mb-3 prose-h2:mt-1.5 prose-h3:mb-2 prose-h3:mt-1 font-body text-foreground">
-                                        {renderMarkdownContent(previewFile.content)}
+                                        <ReactMarkdown
+                                          remarkPlugins={[remarkGfm]}
+                                          components={markdownComponents}
+                                        >
+                                          {previewFileMarkdown}
+                                        </ReactMarkdown>
                                       </div>
                                   </div>
                               ) : (
@@ -1061,12 +1791,123 @@ export function FileProcessingArea() {
                 <FileArchive className="h-5 w-5 text-purple-400" />
                 <span>Step 4: Finish</span>
               </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-                <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                  <Button size="lg" className="w-full text-accent-foreground" onClick={() => startConversion(htmlFiles, false)} disabled={isLoading || htmlFiles.length === 0} style={{ backgroundColor: 'hsl(var(--accent))' }}>
+          </CardHeader>
+          <CardContent className="p-6">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="export-name" className="font-semibold">
+                      Export name
+                    </Label>
+                    <Input
+                      id="export-name"
+                      value={exportName}
+                      onChange={(e) => setExportName(e.target.value)}
+                      placeholder="Insert title"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      The date is appended automatically:{" "}
+                      <span className="font-medium text-foreground">
+                        {buildExportLabel()}
+                      </span>
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="font-semibold">Export date format</Label>
+                    <RadioGroup
+                      value={exportDateFormat}
+                      onValueChange={(value) =>
+                        setExportDateFormat(
+                          value as "yyyy-MM-dd" | "dd-MM-yyyy" | "MM-dd-yyyy" | "yyyyMMdd"
+                        )
+                      }
+                      className="flex flex-wrap gap-4 pt-1"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="yyyy-MM-dd" id="export-date-1" />
+                        <Label htmlFor="export-date-1">YYYY-MM-DD</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="dd-MM-yyyy" id="export-date-2" />
+                        <Label htmlFor="export-date-2">DD-MM-YYYY</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="MM-dd-yyyy" id="export-date-3" />
+                        <Label htmlFor="export-date-3">MM-DD-YYYY</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="yyyyMMdd" id="export-date-4" />
+                        <Label htmlFor="export-date-4">YYYYMMDD</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="font-semibold">Export destination</Label>
+                    <RadioGroup
+                      value={exportDestination}
+                      onValueChange={(value) =>
+                        setExportDestination(value as "zip" | "folder")
+                      }
+                      className="flex flex-col gap-3"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="zip" id="export-zip" />
+                        <Label htmlFor="export-zip">
+                          Download .zip (recommended)
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem
+                          value="folder"
+                          id="export-folder"
+                          disabled={!supportsDirectoryPicker}
+                        />
+                        <Label
+                          htmlFor="export-folder"
+                          className={
+                            supportsDirectoryPicker ? undefined : "text-muted-foreground"
+                          }
+                        >
+                          Export to folder
+                        </Label>
+                        {!supportsDirectoryPicker && (
+                          <span className="text-xs text-muted-foreground">
+                            Desktop Chrome only
+                          </span>
+                        )}
+                      </div>
+                    </RadioGroup>
+                  </div>
+
+                  {exportDestination === "folder" && (
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="also-zip"
+                        checked={alsoDownloadZip}
+                        onCheckedChange={(checked) =>
+                          setAlsoDownloadZip(Boolean(checked))
+                        }
+                      />
+                      <Label htmlFor="also-zip">
+                        Also download a .zip copy
+                      </Label>
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-6">
+                  <Button
+                    size="lg"
+                    className="w-full text-accent-foreground"
+                    onClick={() => startConversion(htmlFiles, false)}
+                    disabled={isLoading || htmlFiles.length === 0}
+                    style={{ backgroundColor: 'hsl(var(--accent))' }}
+                  >
                       {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Download className="mr-2 h-5 w-5" />}
-                      {isLoading ? 'Processing...' : 'Convert & Download .zip'}
+                      {isLoading
+                        ? 'Processing...'
+                        : exportDestination === 'folder'
+                          ? 'Convert & Export Folder'
+                          : 'Convert & Download .zip'}
                   </Button>
               </div>
                 {isLoading && (
@@ -1098,8 +1939,23 @@ export function FileProcessingArea() {
                   <div className="mt-4 flex items-start gap-2 rounded-lg bg-background/50 p-3 text-sm text-muted-foreground">
                       <Info className="h-5 w-5 shrink-0 text-accent" />
                       <div className="space-y-1">
-                          <p>This will download a single .zip file containing {htmlFiles.length} converted notes and {assetFiles.length} assets.</p>
-                          <p>For best results in Obsidian, unzip the file and place your assets in the same folder as your notes.</p>
+                          {exportDestination === "folder" ? (
+                            <p>
+                              This will export {htmlFiles.length} notes and{" "}
+                              {assetFiles.length} assets into a folder named{" "}
+                              {buildExportLabel()}.
+                            </p>
+                          ) : (
+                            <p>
+                              This will download a single .zip file containing{" "}
+                              {htmlFiles.length} converted notes and{" "}
+                              {assetFiles.length} assets.
+                            </p>
+                          )}
+                          <p>
+                            For best results in Obsidian, keep your assets in the
+                            same folder as your notes.
+                          </p>
                       </div>
                   </div>
               )}
@@ -1107,11 +1963,30 @@ export function FileProcessingArea() {
           </Card>
         </div>
 
-        {isLivePreviewOpen && (
-          <aside className="hidden min-[769px]:block min-[769px]:col-span-1">
-            {livePreviewPanel}
-          </aside>
-        )}
+        <aside className="hidden min-[769px]:block min-[769px]:col-span-1">
+          <div className="h-full">
+            {isPreviewVisible && livePreviewPanel}
+            <div
+              data-state={previewState}
+              style={{ ["--preview-top" as string]: `${previewOffset}px` }}
+              className="min-[769px]:sticky min-[769px]:top-[var(--preview-top)] flex flex-col items-center gap-3 rounded-lg border bg-card/70 px-2 py-3 data-[state=open]:hidden data-[state=closing]:hidden"
+            >
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={openLivePreview}
+                aria-label="Show live preview"
+                title="Show live preview"
+              >
+                <Eye className="h-5 w-5" />
+              </Button>
+              <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                Preview
+              </span>
+            </div>
+          </div>
+        </aside>
       </div>
     </div>
   );

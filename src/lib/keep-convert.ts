@@ -65,6 +65,52 @@ function formatTag(tag: string, formatStyle: FormattingOptions['tagHandling']): 
   }
 }
 
+function applyChecklistStyle(
+  content: string,
+  style: FormattingOptions['checkboxStyle'],
+) {
+  const lines = content.split('\n');
+  let index = 1;
+  return lines
+    .map((line) => {
+      const markdownMatch = line.match(
+        /^(\s*)(?:[-*]\s+)?\[( |x|X)\]\s+(.*)$/,
+      );
+      const unicodeMatch = line.match(
+        /^(\s*)(?:[-*]\s+)?([☐☑☒✓])\s+(.*)$/,
+      );
+      if (!markdownMatch && !unicodeMatch) {
+        index = 1;
+        return line;
+      }
+
+      const indent = (markdownMatch?.[1] ?? unicodeMatch?.[1] ?? '') as string;
+      const rawState = (markdownMatch?.[2] ?? unicodeMatch?.[2] ?? '') as string;
+      const text = (markdownMatch?.[3] ?? unicodeMatch?.[3] ?? '') as string;
+      const isChecked =
+        rawState.toLowerCase() === 'x' ||
+        rawState === '☑' ||
+        rawState === '☒' ||
+        rawState === '✓';
+
+      switch (style) {
+        case 'hyphen':
+          return `${indent}- ${text}`;
+        case 'bullet':
+          return `${indent}* ${text}`;
+        case 'numbered': {
+          const numbered = `${indent}${index}. ${text}`;
+          index += 1;
+          return numbered;
+        }
+        case 'markdown':
+        default:
+          return `${indent}- [${isChecked ? 'x' : ' '}] ${text}`;
+      }
+    })
+    .join('\n');
+}
+
 /**
  * Converts extracted data into Markdown format.
  */
@@ -81,7 +127,9 @@ export function formatMarkdown(
     );
     markdown.push(`**Tags:** ${formattedTags.join(' ')}\n`);
   }
-  markdown.push(`${data.content}\n`);
+  const checklistStyle = formattingOptions.checkboxStyle ?? 'markdown';
+  const content = applyChecklistStyle(data.content, checklistStyle);
+  markdown.push(`${content}\n`);
   if (data.attachments.length > 0) {
     for (const attachment of data.attachments) {
       const filename = attachment.split('/').pop();

@@ -6,4 +6,6 @@ export const STORAGE_KEYS = {
   lastMarkdownPreset: 'keepSyncLastMarkdownPreset',
   keepApiStatus: 'keepSyncKeepApiStatus',
   keepApiSetupChoice: 'keepSyncKeepApiSetupChoice',
+  keepSyncInterval: 'keepSyncInterval',
+  keepSyncLastSync: 'keepSyncLastSync',
 } as const;

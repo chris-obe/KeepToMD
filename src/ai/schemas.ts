@@ -23,6 +23,7 @@ export type NamingOptions = z.infer<typeof NamingOptionsSchema>;
 
 export const FormattingOptionsSchema = z.object({
   tagHandling: z.enum(['links', 'hash', 'atlinks']),
+  checkboxStyle: z.enum(['markdown', 'hyphen', 'bullet', 'numbered']),
 });
 export type FormattingOptions = z.infer<typeof FormattingOptionsSchema>;
 

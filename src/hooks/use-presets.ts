@@ -35,7 +35,15 @@ const initialNamingOptions: NamingOptions = {
 
 const initialFormattingOptions: FormattingOptions = {
     tagHandling: 'hash',
+    checkboxStyle: 'markdown',
 };
+
+const normalizeFormattingOptions = (
+  options: Partial<FormattingOptions>,
+): FormattingOptions => ({
+  ...initialFormattingOptions,
+  ...options,
+});
 
 type PresetsState = {
   namingPresets: NamingPreset[];
@@ -99,9 +107,16 @@ const reducer = (state: PresetsState, action: Action): PresetsState => {
             const newNamingOptions = typeof action.payload === 'function' ? action.payload(state.namingOptions) : action.payload;
             return { ...state, namingOptions: newNamingOptions, selectedNamingPreset: '' };
 
-        case 'SET_FORMATTING_OPTIONS':
-            const newFormattingOptions = typeof action.payload === 'function' ? action.payload(state.formattingOptions) : action.payload;
-            return { ...state, formattingOptions: newFormattingOptions, selectedMarkdownPreset: '' };
+        case 'SET_FORMATTING_OPTIONS': {
+            const nextOptions = typeof action.payload === 'function'
+              ? action.payload(state.formattingOptions)
+              : action.payload;
+            return {
+              ...state,
+              formattingOptions: normalizeFormattingOptions(nextOptions),
+              selectedMarkdownPreset: '',
+            };
+        }
 
         case 'SAVE_NAMING_PRESET': {
             const { name, options } = action.payload;
@@ -182,7 +197,11 @@ const reducer = (state: PresetsState, action: Action): PresetsState => {
             const preset = state.markdownPresets.find(p => p.name === name);
             if (preset) {
                 try { localStorage.setItem(STORAGE_KEYS.lastMarkdownPreset, name); } catch (e) {}
-                return { ...state, selectedMarkdownPreset: name, formattingOptions: preset.options };
+                return {
+                  ...state,
+                  selectedMarkdownPreset: name,
+                  formattingOptions: normalizeFormattingOptions(preset.options),
+                };
             }
             return state;
         }
@@ -226,7 +245,12 @@ export const usePresets = () => {
 
             const savedMarkdownPresets = localStorage.getItem(STORAGE_KEYS.markdownPresets);
             if (savedMarkdownPresets) {
-                dispatch({ type: 'SET_MARKDOWN_PRESETS', payload: JSON.parse(savedMarkdownPresets) as MarkdownPreset[] });
+                const parsed = JSON.parse(savedMarkdownPresets) as MarkdownPreset[];
+                const normalized = parsed.map((preset) => ({
+                  ...preset,
+                  options: normalizeFormattingOptions(preset.options),
+                }));
+                dispatch({ type: 'SET_MARKDOWN_PRESETS', payload: normalized });
             }
             const lastMarkdownPreset = localStorage.getItem(STORAGE_KEYS.lastMarkdownPreset);
             if (lastMarkdownPreset) {

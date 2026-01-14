@@ -1,7 +1,9 @@
-import type {Metadata} from 'next';
+import type { Metadata } from 'next';
 import './globals.css';
-import { Toaster } from "@/components/ui/toaster"
+import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from '@/components/theme-provider';
+import { ConversionProvider } from '@/components/feature/conversion-context';
+import { ApiSetupDialog } from '@/components/feature/api-setup-dialog';
 
 export const metadata: Metadata = {
   title: 'KeepToMD - Convert Google Keep to Obsidian',
@@ -17,8 +19,16 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Literata:opsz,wght@7..72,400;7..72,700&display=swap" rel="stylesheet" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital,opsz@0,8..144;1,8..144&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+          rel="stylesheet"
+        />
+        <link rel="icon" href="/brand/keeptmd-logo.png" />
       </head>
       <body className="font-body antialiased">
         <ThemeProvider
@@ -27,8 +37,11 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
-          <Toaster />
+          <ConversionProvider>
+            <ApiSetupDialog autoOpen={false} />
+            {children}
+            <Toaster />
+          </ConversionProvider>
         </ThemeProvider>
       </body>
     </html>
