@@ -8,4 +8,6 @@ export const STORAGE_KEYS = {
   keepApiSetupChoice: 'keepSyncKeepApiSetupChoice',
   keepSyncInterval: 'keepSyncInterval',
   keepSyncLastSync: 'keepSyncLastSync',
+  keepSyncNoteHashes: 'keepSyncNoteHashes',
+  keepSyncStaged: 'keepSyncStaged',
 } as const;

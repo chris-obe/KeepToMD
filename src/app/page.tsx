@@ -32,10 +32,10 @@ export default function Home() {
 
       <div className="container mx-auto flex max-w-6xl flex-col px-4 pb-16 pt-10 sm:px-8 sm:pb-20 sm:pt-14">
         <nav className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="relative h-12 w-12 rounded-2xl bg-card/70 p-2 shadow-sm">
+          <div className="flex items-end gap-3">
+            <div className="relative h-12 w-12">
               <Image
-                src="/brand/keeptmd-logo.png"
+                src="/brand/keeptmd-logo.svg"
                 alt="KeepToMD logo"
                 fill
                 sizes="48px"

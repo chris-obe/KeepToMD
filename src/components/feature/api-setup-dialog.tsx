@@ -37,17 +37,20 @@ import { cn } from "@/lib/utils";
 type SetupStep =
   | "choice"
   | "confirm"
-  | "appPassword"
+  | "auth"
   | "bridge"
   | "login"
   | "success";
+
+type AuthMode = "app_password" | "oauth_token";
 
 type ApiSetupDialogProps = {
   autoOpen?: boolean;
 };
 
 const KEEP_SERVICE_URL = "http://localhost:3717/health";
-const KEEP_SERVICE_NOTES_URL = "http://localhost:3717/notes";
+const KEEP_SERVICE_COMPARE_URL = "http://localhost:3717/sync/compare";
+const KEEP_AUTH_EMBED_URL = "https://accounts.google.com/EmbeddedSetup";
 const KEEP_SERVICE_DIR =
   "export BRIDGE_DIR=\"$HOME/GoogleKeepToMarkdown/KeepToMD-bridge\"";
 const KEEP_SERVICE_CLONE =
@@ -63,7 +66,7 @@ const syncIntervalOptions = [
 ] as const;
 
 const setupSteps = [
-  { id: "appPassword", label: "App Password" },
+  { id: "auth", label: "Auth Method" },
   { id: "bridge", label: "Local Bridge" },
   { id: "login", label: "Sign In" },
 ] as const;
@@ -74,8 +77,9 @@ export function ApiSetupDialog({ autoOpen = false }: ApiSetupDialogProps) {
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
+  const [authMode, setAuthMode] = useState<AuthMode>("app_password");
   const [loginEmail, setLoginEmail] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
+  const [loginToken, setLoginToken] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [confirmAcknowledged, setConfirmAcknowledged] = useState(false);
@@ -86,12 +90,24 @@ export function ApiSetupDialog({ autoOpen = false }: ApiSetupDialogProps) {
   const [syncProgress, setSyncProgress] = useState(0);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [syncSummary, setSyncSummary] = useState<{
+    total: number;
+    new: number;
+    modified: number;
+    unchanged: number;
+  } | null>(null);
+  const [syncPayload, setSyncPayload] = useState<{
+    summary: { total: number; new: number; modified: number; unchanged: number };
+    new: Array<unknown>;
+    modified: Array<unknown>;
+    hashes: Record<string, string>;
+  } | null>(null);
   const progressTimer = useRef<number | null>(null);
   const { setStatus } = useKeepConnection();
   const { toast } = useToast();
 
   const activeStepIndex = useMemo(() => {
-    if (step === "appPassword") return 0;
+    if (step === "auth") return 0;
     if (step === "bridge") return 1;
     return 2;
   }, [step]);
@@ -154,12 +170,15 @@ export function ApiSetupDialog({ autoOpen = false }: ApiSetupDialogProps) {
     setIsDetecting(false);
     setIsLoggingIn(false);
     setLoginEmail("");
-    setLoginPassword("");
+    setLoginToken("");
+    setAuthMode("app_password");
     setConfirmAcknowledged(false);
     setSyncStatus("idle");
     setSyncProgress(0);
     setSyncMessage(null);
     setSyncError(null);
+    setSyncSummary(null);
+    setSyncPayload(null);
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -240,10 +259,14 @@ export function ApiSetupDialog({ autoOpen = false }: ApiSetupDialogProps) {
       return;
     }
     if (step === "bridge") {
-      setStep("appPassword");
+      setStep("auth");
       return;
     }
-    if (step === "appPassword" || step === "confirm") {
+    if (step === "auth") {
+      setStep("confirm");
+      return;
+    }
+    if (step === "confirm") {
       setStep("choice");
       return;
     }
@@ -261,19 +284,32 @@ export function ApiSetupDialog({ autoOpen = false }: ApiSetupDialogProps) {
       const response = await fetch("http://localhost:3717/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+        body: JSON.stringify({
+          email: loginEmail,
+          mode: authMode,
+          token: loginToken,
+        }),
       });
 
       if (!response.ok) {
-        throw new Error("Login failed.");
+        const payload = await response.json().catch(() => null);
+        const detail = payload?.detail;
+        if (response.status === 409 && detail?.url) {
+          throw new Error(`Browser login required. Open ${detail.url}`);
+        }
+        throw new Error(detail?.message || detail || "Login failed.");
       }
 
       setStatus("connected");
       saveChoice("api");
-      setLoginPassword("");
+      setLoginToken("");
       setStep("success");
     } catch (error) {
-      setLoginError("Login failed. Check your credentials and try again.");
+      setLoginError(
+        error instanceof Error
+          ? error.message
+          : "Login failed. Check your credentials and try again.",
+      );
     } finally {
       setIsLoggingIn(false);
     }
@@ -292,6 +328,8 @@ export function ApiSetupDialog({ autoOpen = false }: ApiSetupDialogProps) {
     setSyncStatus("syncing");
     setSyncError(null);
     setSyncMessage(null);
+    setSyncSummary(null);
+    setSyncPayload(null);
     setSyncProgress(12);
 
     if (typeof window !== "undefined") {
@@ -304,9 +342,28 @@ export function ApiSetupDialog({ autoOpen = false }: ApiSetupDialogProps) {
     }
 
     try {
-      const response = await fetch(KEEP_SERVICE_NOTES_URL, {
-        method: "GET",
+      let knownHashes: Record<string, string> | null = null;
+      if (typeof window !== "undefined") {
+        const storedHashes = localStorage.getItem(
+          STORAGE_KEYS.keepSyncNoteHashes
+        );
+        if (storedHashes) {
+          try {
+            const parsed = JSON.parse(storedHashes);
+            if (parsed && typeof parsed === "object") {
+              knownHashes = parsed as Record<string, string>;
+            }
+          } catch {
+            knownHashes = null;
+          }
+        }
+      }
+
+      const response = await fetch(KEEP_SERVICE_COMPARE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         cache: "no-store",
+        body: JSON.stringify({ known_hashes: knownHashes, persist: true }),
       });
 
       if (!response.ok) {
@@ -321,10 +378,36 @@ export function ApiSetupDialog({ autoOpen = false }: ApiSetupDialogProps) {
 
       setSyncProgress(100);
       setSyncStatus("complete");
-      if (Array.isArray(data)) {
-        setSyncMessage(`Synced ${data.length} notes.`);
+      if (data?.summary) {
+        const summary = data.summary as {
+          total?: number;
+          new?: number;
+          modified?: number;
+        };
+        const newCount = summary.new ?? 0;
+        const modifiedCount = summary.modified ?? 0;
+        setSyncSummary({
+          total: summary.total ?? 0,
+          new: newCount,
+          modified: modifiedCount,
+          unchanged: Math.max(
+            0,
+            (summary.total ?? 0) - newCount - modifiedCount
+          ),
+        });
+        setSyncPayload(data);
+        setSyncMessage(
+          `Found ${newCount} new and ${modifiedCount} updated notes.`
+        );
       } else {
         setSyncMessage("Sync complete. Ready to convert.");
+      }
+
+      if (data?.hashes && typeof window !== "undefined") {
+        localStorage.setItem(
+          STORAGE_KEYS.keepSyncNoteHashes,
+          JSON.stringify(data.hashes)
+        );
       }
       const now = new Date().toISOString();
       localStorage.setItem(STORAGE_KEYS.keepSyncLastSync, now);
@@ -339,6 +422,30 @@ export function ApiSetupDialog({ autoOpen = false }: ApiSetupDialogProps) {
     }
   };
 
+  const handleStageSyncSelection = (mode: "new" | "update") => {
+    if (!syncPayload) return;
+    if (typeof window !== "undefined") {
+      localStorage.setItem(
+        STORAGE_KEYS.keepSyncStaged,
+        JSON.stringify({
+          mode,
+          stagedAt: new Date().toISOString(),
+          summary: syncPayload.summary,
+          new: syncPayload.new,
+          modified: syncPayload.modified,
+        })
+      );
+    }
+    toast({
+      title:
+        mode === "new"
+          ? "New notes staged"
+          : "Updates staged",
+      description:
+        "Open the Convert page to continue when you're ready.",
+    });
+  };
+
   const dialogTitle =
     step === "choice"
       ? "Choose your import path"
@@ -349,7 +456,7 @@ export function ApiSetupDialog({ autoOpen = false }: ApiSetupDialogProps) {
     step === "choice"
       ? "One-time export is best for switching platforms or doing a final batch export."
       : step === "confirm"
-        ? "Continuous sync is a multi-step setup that uses a local helper with direct access to your Google account."
+        ? "Continuous sync is a multi-step setup that uses a local helper with App Password or browser-token access."
         : "Follow these steps to connect the local bridge.";
 
   return (
@@ -406,8 +513,8 @@ export function ApiSetupDialog({ autoOpen = false }: ApiSetupDialogProps) {
                 </span>
               </div>
               <p className="text-sm text-muted-foreground">
-                Requires a local helper that stays running and an App Password
-                with direct access to your Google account.
+                Requires a local helper that stays running and either an App
+                Password or browser token for access.
               </p>
               <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
                 <span className="rounded-full border px-2 py-0.5">
@@ -438,11 +545,41 @@ export function ApiSetupDialog({ autoOpen = false }: ApiSetupDialogProps) {
               </p>
               <ul className="list-disc space-y-2 pl-5 text-sm text-muted-foreground">
                 <li>Requires a local utility that stays running on your machine.</li>
-                <li>
-                  Uses a Google App Password with direct access to your account.
-                </li>
+                <li>Supports App Password or browser token authentication.</li>
                 <li>Best for ongoing sync, not a one-time export.</li>
               </ul>
+              <div className="rounded-lg border bg-background/40 p-3">
+                <p className="text-sm font-semibold text-foreground">
+                  Choose a sign-in method
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  App Passwords are recommended. Browser tokens are available
+                  when App Passwords fail.
+                </p>
+                <div className="mt-3">
+                  <Select
+                    value={authMode}
+                    onValueChange={(value) =>
+                      setAuthMode(value as AuthMode)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose authentication" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="app_password">
+                        App Password (recommended)
+                      </SelectItem>
+                      <SelectItem value="oauth_token">
+                        Browser token (experimental)
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  The bridge stores tokens locally (keychain if available).
+                </p>
+              </div>
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="sync-confirm"
@@ -464,44 +601,83 @@ export function ApiSetupDialog({ autoOpen = false }: ApiSetupDialogProps) {
                 Back
               </Button>
               <Button
-                onClick={() => setStep("appPassword")}
+                onClick={() => setStep("auth")}
                 disabled={!confirmAcknowledged}
               >
                 Continue setup
               </Button>
             </div>
           </div>
-        ) : step === "appPassword" ? (
+        ) : step === "auth" ? (
           <div className="space-y-4">
             <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
-              <div className="space-y-2">
-                <p className="text-sm font-semibold">Step 1: Create an App Password</p>
-                <p className="text-sm text-muted-foreground">
-                  The local bridge needs a Google App Password to connect. Use
-                  your regular email, but an App Password instead of your normal
-                  password.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button variant="secondary" asChild>
-                  <a
-                    href="https://myaccount.google.com/apppasswords"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <Link2 className="mr-2 h-4 w-4" />
-                    Open App Passwords
-                  </a>
-                </Button>
-              </div>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>- Name it "KeepToMD" so you can find it later.</li>
-                <li>
-                  - Copy the 16-character password. Remove spaces if they
-                  appear.
-                </li>
-                <li>- You will paste it in the sign-in step.</li>
-              </ul>
+              {authMode === "app_password" ? (
+                <>
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold">
+                      Step 1: Create an App Password
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      The local bridge needs a Google App Password to connect.
+                      Use your regular email, but an App Password instead of
+                      your normal password.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button variant="secondary" asChild>
+                      <a
+                        href="https://myaccount.google.com/apppasswords"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <Link2 className="mr-2 h-4 w-4" />
+                        Open App Passwords
+                      </a>
+                    </Button>
+                  </div>
+                  <ul className="space-y-2 text-sm text-muted-foreground">
+                    <li>- Name it "KeepToMD" so you can find it later.</li>
+                    <li>
+                      - Copy the 16-character password. Remove spaces if they
+                      appear.
+                    </li>
+                    <li>- You will paste it in the sign-in step.</li>
+                  </ul>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold">
+                      Step 1: Get a browser token
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Use your browser to complete Google login, then copy the
+                      oauth_token cookie value.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button variant="secondary" asChild>
+                      <a
+                        href={KEEP_AUTH_EMBED_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <Link2 className="mr-2 h-4 w-4" />
+                        Open Embedded Setup
+                      </a>
+                    </Button>
+                  </div>
+                  <ul className="space-y-2 text-sm text-muted-foreground">
+                    <li>- Sign in with your Google account (2FA works here).</li>
+                    <li>
+                      - Open DevTools → Application/Storage → Cookies →
+                      accounts.google.com.
+                    </li>
+                    <li>- Copy the cookie named oauth_token.</li>
+                    <li>- Paste it in the sign-in step.</li>
+                  </ul>
+                </>
+              )}
             </div>
             <div className="flex items-center justify-between">
               <Button variant="outline" onClick={handleBack}>
@@ -519,8 +695,9 @@ export function ApiSetupDialog({ autoOpen = false }: ApiSetupDialogProps) {
                   Step 3: Sign in to Google Keep
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Use your Google email and the App Password you generated (not
-                  your regular password).
+                  {authMode === "app_password"
+                    ? "Use your Google email and the App Password you generated (not your regular password)."
+                    : "Paste the oauth_token cookie value from the browser flow."}
                 </p>
               </div>
               <div className="space-y-3">
@@ -530,9 +707,11 @@ export function ApiSetupDialog({ autoOpen = false }: ApiSetupDialogProps) {
                   placeholder="Email"
                 />
                 <Input
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  placeholder="App password"
+                  value={loginToken}
+                  onChange={(e) => setLoginToken(e.target.value)}
+                  placeholder={
+                    authMode === "app_password" ? "App password" : "oauth_token"
+                  }
                   type="password"
                 />
                 {loginError && (
@@ -542,7 +721,7 @@ export function ApiSetupDialog({ autoOpen = false }: ApiSetupDialogProps) {
               <div className="flex items-center gap-2">
                 <Button
                   onClick={handleLogin}
-                  disabled={isLoggingIn || !loginEmail || !loginPassword}
+                  disabled={isLoggingIn || !loginEmail || !loginToken}
                   className="w-full"
                 >
                   {isLoggingIn ? "Signing in..." : "Sign in to Keep"}
@@ -717,6 +896,35 @@ export function ApiSetupDialog({ autoOpen = false }: ApiSetupDialogProps) {
               {syncStatus === "error" && (
                 <p className="text-xs text-destructive">{syncError}</p>
               )}
+              {syncSummary &&
+                (syncSummary.new > 0 || syncSummary.modified > 0) && (
+                  <div className="rounded-lg border bg-background/40 p-3">
+                    <p className="text-sm font-semibold text-foreground">
+                      New changes detected
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {syncSummary.new} new • {syncSummary.modified} updated
+                    </p>
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      <Button
+                        variant="secondary"
+                        onClick={() => handleStageSyncSelection("new")}
+                      >
+                        Convert new only
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => handleStageSyncSelection("update")}
+                      >
+                        Update existing files
+                      </Button>
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      This stages the selection for conversion using your last
+                      saved presets.
+                    </p>
+                  </div>
+                )}
             </div>
 
             <div className="rounded-xl border bg-muted/20 p-4 space-y-3">

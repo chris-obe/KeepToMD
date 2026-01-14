@@ -28,7 +28,7 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital,opsz@0,8..144;1,8..144&family=Space+Grotesk:wght@400;500;600;700&display=swap"
           rel="stylesheet"
         />
-        <link rel="icon" href="/brand/keeptmd-logo.png" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
       </head>
       <body className="font-body antialiased">
         <ThemeProvider
