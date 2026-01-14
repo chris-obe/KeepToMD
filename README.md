@@ -2,22 +2,21 @@
 
 Local Keep bridge repo: `https://github.com/chris-obe/KeepToMD.bridge` (folder name: `KeepToMD-bridge`).
 
-This application provides a streamlined solution for converting your Google Keep takeout data into Obsidian-compatible Markdown files. Designed with privacy and user control in mind, it processes all files locally in your browser, ensuring your data never leaves your device.
+Live site: `https://keeptomd.lightpilot.co`
+
+KeepToMD converts Google Keep Takeout exports into Obsidian-ready Markdown. It runs locally in your browser so your files never leave your device, and it offers an optional local bridge for continuous sync.
 
 ## ✨ Features
 
-*   **Local Processing:** All conversion happens client-side in your browser, ensuring complete data privacy and security.
-*   **Intuitive Interface:** A clean, step-by-step UI guides you through the import, processing, and download stages.
-*   **Customizable File Naming:** Define your own rules for how converted Markdown files are named, including:
-    *   Adding emojis.
-    *   Including filler text.
-    *   Applying date formats.
-    *   Generating serial numbers for notes.
-*   **Markdown Presets:** Save and load custom Markdown formatting preferences to apply consistent styling.
-*   **Progress Tracking:** Monitor the conversion process with a progress bar and real-time updates on the file currently being processed.
-*   **Theme Toggle:** Switch between light and dark modes for a comfortable viewing experience.
-*   **History Management:** Local storage for conversion history and user preferences.
-*   **Error Handling:** Robust handling for common issues like hydration mismatches and build failures.
+*   **Local Processing:** Conversion runs client-side in your browser for maximum privacy.
+*   **Two Paths:** One-time Takeout export (recommended) or continuous sync via the local bridge.
+*   **Live Preview:** See Markdown output (including linked media) before export.
+*   **Conversion Preview:** Inspect converted files in a preview dialog before downloading.
+*   **Customizable File Naming:** Control titles, dates, emojis, serials, filler text, and formats.
+*   **Markdown Formatting Presets:** Save and reuse formatting presets (tags, checklists, etc.).
+*   **Export Options:** Download as `.zip` or export to a folder (desktop browsers).
+*   **Run History & Hashing:** Tracks past conversions to prevent duplicate runs.
+*   **Theme Toggle:** Light/dark mode support.
 
 ## 🚀 Getting Started
 
@@ -32,7 +31,7 @@ To get a local copy up and running, follow these steps.
 
 1.  Clone the repository:
     ```bash
-    git clone <your-repo-url>
+    git clone <https://github.com/chris-obe/KeepToMD.git>
     cd KeepToMD
     ```
 2.  Install dependencies:
@@ -73,7 +72,8 @@ The exported site is generated in `out/`.
 
 ## 🤝 Contributing
 
-Contributions, issues, and feature requests are welcome! Feel free to check [issues page](link-to-issues-page-if-any) if you have any ideas.
+Contributions, issues, and feature requests are welcome. Please open an issue at:
+`https://github.com/chris-obe/KeepToMD/issues`
 
 ## 📄 License
 

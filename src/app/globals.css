@@ -110,3 +110,61 @@ html {
   scrollbar-width: thin;
   scrollbar-color: hsl(var(--muted)) hsl(var(--background));
 }
+
+@layer components {
+  .step-pulse {
+    animation: stepPulse 24s ease-in-out infinite;
+    animation-delay: var(--step-delay, 0s);
+    border-color: hsl(var(--border));
+    box-shadow: none;
+  }
+
+  .step-pulse-yellow {
+    --pulse-color: hsl(var(--primary));
+    --pulse-glow: 48 96% 61%;
+  }
+
+  .step-pulse-purple {
+    --pulse-color: hsl(var(--accent));
+    --pulse-glow: 270 65% 65%;
+  }
+
+  .step-delay-1 {
+    --step-delay: 2s;
+  }
+
+  .step-delay-2 {
+    --step-delay: 4.8s;
+  }
+
+  .step-delay-3 {
+    --step-delay: 7.6s;
+  }
+}
+
+@keyframes stepPulse {
+  0% {
+    border-color: hsl(var(--border));
+    box-shadow: none;
+  }
+  4% {
+    border-color: var(--pulse-color);
+    box-shadow:
+      0 0 0 1px var(--pulse-color),
+      0 0 28px -12px hsl(var(--pulse-glow) / 0.6);
+  }
+  8% {
+    border-color: var(--pulse-color);
+    box-shadow:
+      0 0 0 1px var(--pulse-color),
+      0 0 36px -10px hsl(var(--pulse-glow) / 0.7);
+  }
+  12% {
+    border-color: hsl(var(--border));
+    box-shadow: none;
+  }
+  100% {
+    border-color: hsl(var(--border));
+    box-shadow: none;
+  }
+}

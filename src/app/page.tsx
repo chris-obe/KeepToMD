@@ -1,5 +1,14 @@
 import Image from "next/image";
+import Link from "next/link";
 import { LandingActions } from "@/components/feature/landing-actions";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   ArrowUpRight,
   Folder,
@@ -10,6 +19,8 @@ import {
 } from "lucide-react";
 
 export default function Home() {
+  const currentYear = new Date().getFullYear();
+
   return (
     <main className="relative min-h-screen w-full overflow-hidden bg-background font-body text-foreground">
       <div className="pointer-events-none absolute inset-0 -z-10">
@@ -42,11 +53,6 @@ export default function Home() {
               </p>
             </div>
           </div>
-          <div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex">
-            <span className="rounded-full border px-3 py-1">Local-first</span>
-            <span className="rounded-full border px-3 py-1">No signup</span>
-            <span className="rounded-full border px-3 py-1">Private</span>
-          </div>
         </nav>
 
         <section className="mt-12 grid items-start gap-10 lg:grid-cols-[1.15fr,0.85fr]">
@@ -56,7 +62,7 @@ export default function Home() {
               Local-first conversion
             </span>
             <div className="space-y-4">
-              <h1 className="text-4xl font-semibold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
+              <h1 className="text-[3.1rem] font-semibold leading-[1.05] tracking-tight sm:text-[3.85rem] lg:text-[4.35rem]">
                 Turn{" "}
                 <span className="font-headline italic text-primary">Keep</span>
                 {" "}
@@ -67,23 +73,11 @@ export default function Home() {
                 {" "}
                 with a clean, vault-ready export.
               </h1>
-              <p className="max-w-xl text-base text-muted-foreground sm:text-lg">
+              <p className="max-w-xl text-lg text-muted-foreground sm:text-xl">
                 KeepToMD turns your Google Keep notes into structured Markdown
                 that drops straight into Obsidian. Everything runs locally, so
                 your notes stay on your machine.
               </p>
-            </div>
-
-            <div className="flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-              <span className="rounded-full border bg-card/60 px-3 py-1">
-                One-time export
-              </span>
-              <span className="rounded-full border bg-card/60 px-3 py-1">
-                Continuous sync
-              </span>
-              <span className="rounded-full border bg-card/60 px-3 py-1">
-                No cloud uploads
-              </span>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -122,7 +116,27 @@ export default function Home() {
                 The recommended path is a one-time export. Continuous sync is
                 available for advanced setups.
               </p>
-              <LandingActions align="start" className="mt-6" />
+              <div className="mt-6 space-y-4">
+                <LandingActions align="start" />
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="h-12 w-full justify-center rounded-full border-primary/40 text-base font-semibold text-primary"
+                    >
+                      Watch demo
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-3xl">
+                    <DialogHeader>
+                      <DialogTitle>KeepToMD demo</DialogTitle>
+                    </DialogHeader>
+                    <div className="aspect-video w-full rounded-2xl border bg-muted/40 p-6 text-sm text-muted-foreground flex items-center justify-center">
+                      Demo video placeholder
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
@@ -160,8 +174,9 @@ export default function Home() {
         </section>
 
         <section className="mt-16 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-2xl border bg-card/70 p-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+          <div className="rounded-2xl border bg-card/70 p-6 step-pulse step-pulse-yellow step-delay-1">
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-primary/80">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
               Step 1
             </p>
             <p className="mt-3 text-lg font-semibold">Choose your source</p>
@@ -170,8 +185,9 @@ export default function Home() {
               bridge for ongoing sync.
             </p>
           </div>
-          <div className="rounded-2xl border bg-card/70 p-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+          <div className="rounded-2xl border bg-card/70 p-6 step-pulse step-pulse-yellow step-delay-2">
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-primary/80">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
               Step 2
             </p>
             <p className="mt-3 text-lg font-semibold">Tune your output</p>
@@ -179,8 +195,9 @@ export default function Home() {
               Preview naming rules, presets, and formatting before you export.
             </p>
           </div>
-          <div className="rounded-2xl border bg-card/70 p-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+          <div className="rounded-2xl border bg-card/70 p-6 step-pulse step-pulse-purple step-delay-3">
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-accent/90">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent" />
               Step 3
             </p>
             <p className="mt-3 text-lg font-semibold">Drop into Obsidian</p>
@@ -189,6 +206,27 @@ export default function Home() {
             </p>
           </div>
         </section>
+
+        <footer className="mt-16 border-t border-border/60 pt-6 text-sm text-muted-foreground">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p>
+              &copy; {currentYear} KeepToMD by Lightpilot. All rights reserved.
+            </p>
+            <div className="flex flex-wrap items-center gap-4">
+              <Link href="/terms" className="transition hover:text-foreground">
+                Terms &amp; Conditions
+              </Link>
+              <a
+                href="https://github.com/chris-obe/KeepToMD"
+                target="_blank"
+                rel="noreferrer"
+                className="transition hover:text-foreground"
+              >
+                GitHub
+              </a>
+            </div>
+          </div>
+        </footer>
       </div>
     </main>
   );
