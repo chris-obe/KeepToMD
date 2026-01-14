@@ -1,10 +1,13 @@
 # KeepToMD — Google Keep Takeout to Markdown
 
-Local Keep bridge repo: `https://github.com/chris-obe/KeepToMD.bridge` (folder name: `KeepToMD-bridge`).
-
 Live site: `https://keeptomd.lightpilot.co`
 
 KeepToMD converts Google Keep Takeout exports into Obsidian-ready Markdown. It runs locally in your browser so your files never leave your device, and it offers an optional local bridge for continuous sync.
+
+## 🔗 Related Repositories
+
+*   **KeepToMD (this repo):** `https://github.com/chris-obe/KeepToMD` — Maintained by `@chris-obe` (Lightpilot).
+*   **KeepToMD-bridge:** `https://github.com/chris-obe/KeepToMD-bridge` — Local Python bridge for continuous sync. Maintained by `@chris-obe` (Lightpilot).
 
 ## ✨ Features
 
@@ -72,11 +75,22 @@ The exported site is generated in `out/`.
 
 ## 🤝 Contributing
 
-Contributions, issues, and feature requests are welcome. Please open an issue at:
-`https://github.com/chris-obe/KeepToMD/issues`
+Contributions, issues, and feature requests are welcome.
+
+*   **KeepToMD issues:** `https://github.com/chris-obe/KeepToMD/issues`
+*   **KeepToMD-bridge issues:** `https://github.com/chris-obe/KeepToMD-bridge/issues`
 
 ## 📄 License
 
 Distributed under the MIT License. See `LICENSE` for more information.
+
+## 🙌 Credits & Third-Party Projects
+
+The local bridge relies on third-party libraries with their own licenses:
+
+*   **gkeepapi** — `https://github.com/kiwiz/gkeepapi` (maintained by `@kiwiz`)
+*   **gpsoauth** — `https://github.com/simon-weber/gpsoauth` (maintained by `@simon-weber`)
+
+If you distribute or modify the bridge, please follow those projects’ licensing and attribution requirements.
 
 ---
