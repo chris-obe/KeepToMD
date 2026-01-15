@@ -57,7 +57,7 @@ export function AppHeader() {
         >
           <span className="relative h-7 w-7">
             <Image
-              src="/brand/keeptmd-logo.svg"
+              src="/brand/keeptmd-logo.png"
               alt="KeepToMD logo"
               fill
               sizes="28px"

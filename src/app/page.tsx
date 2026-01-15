@@ -33,9 +33,9 @@ export default function Home() {
       <div className="container mx-auto flex max-w-6xl flex-col px-4 pb-16 pt-10 sm:px-8 sm:pb-20 sm:pt-14">
         <nav className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-end gap-3">
-            <div className="relative h-12 w-12">
+            <div className="relative h-10 w-10">
               <Image
-                src="/brand/keeptmd-logo.svg"
+                src="/brand/keeptmd-logo.png"
                 alt="KeepToMD logo"
                 fill
                 sizes="48px"
@@ -45,10 +45,10 @@ export default function Home() {
               />
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.4em] text-primary">
+              <p className="text-sm font-semibold uppercase tracking-[0.35em] text-primary">
                 KeepToMD
               </p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 Google Keep exports, Obsidian-ready.
               </p>
             </div>
